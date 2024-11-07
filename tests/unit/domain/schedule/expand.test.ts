@@ -130,7 +130,7 @@ describe('cadences that are not ready yet', () => {
     expect(() =>
       expandHabit({
         roster: plain,
-        habit: aHabit({ cadence: '3/hitch' }),
+        habit: aHabit({ cadence: '5/14d' }),
         window: r('2025-01-06..2025-02-02'),
       }),
     ).toThrow(UnsupportedError);
@@ -172,5 +172,102 @@ describe('habitWindow', () => {
   it('returns nothing when the habit is over before the window opens', () => {
     const entry = aHabit({ startsOn: '2024-01-01', endsOn: '2024-06-30' });
     expect(habitWindow(entry, r('2025-01-01..2025-01-31'))).toBeUndefined();
+  });
+});
+
+describe('a hitch cadence', () => {
+  it('asks once for each turn of the rotation', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '3/hitch' }),
+      window: r('2025-01-06..2025-03-02'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-02-02',
+      '2025-02-03..2025-03-02',
+    ]);
+    expect(entries.every((entry) => entry.times === 3)).toBe(true);
+  });
+
+  it('includes the hitch a short window sits inside', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '3/hitch' }),
+      window: r('2025-01-20..2025-01-21'),
+    });
+    expect(entries).toHaveLength(1);
+    expect(formatDateRange(entries[0]!.window)).toBe('2025-01-06..2025-02-02');
+  });
+
+  it('clips the first hitch to the day the habit started', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '2/hitch', startsOn: '2025-01-15' }),
+      window: r('2025-01-06..2025-02-02'),
+    });
+    expect(formatDateRange(entries[0]!.window)).toBe('2025-01-15..2025-02-02');
+  });
+
+  it('is scoped as a hitch', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '2/hitch' }),
+      window: r('2025-01-06..2025-01-20'),
+    });
+    expect(entries[0]!.scope).toBe('hitch');
+    expect(obligationKey(entries[0]!)).toBe('hab_0123456789ABCDEF:hitch:2025-02-02');
+  });
+});
+
+describe('a block cadence', () => {
+  it('asks once for each run of shift days', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '1/onshift-block' }),
+      window: r('2025-01-06..2025-03-02'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-01-19',
+      '2025-02-03..2025-02-16',
+    ]);
+  });
+
+  it('returns a whole block that started before the window', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '1/onshift-block' }),
+      window: r('2025-01-15..2025-01-16'),
+    });
+    expect(entries).toHaveLength(1);
+    expect(formatDateRange(entries[0]!.window)).toBe('2025-01-06..2025-01-19');
+  });
+
+  it('follows an override that extends the block', () => {
+    const held = roster(member, [
+      rosterOverride({
+        memberId: member.id,
+        range: r('2025-01-20..2025-01-22'),
+        role: 'onshift',
+        reason: 'held_over',
+        enteredAt: parseInstant('2025-01-18T10:00:00Z'),
+      }),
+    ]);
+    const entries = expandHabit({
+      roster: held,
+      habit: aHabit({ cadence: '1/onshift-block' }),
+      window: r('2025-01-06..2025-01-25'),
+    });
+    expect(formatDateRange(entries[0]!.window)).toBe('2025-01-06..2025-01-22');
+  });
+
+  it('can be asked about the off shift blocks instead', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '2/offshift-block' }),
+      window: r('2025-01-20..2025-02-02'),
+    });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.times).toBe(2);
+    expect(entries[0]!.scope).toBe('block');
   });
 });
