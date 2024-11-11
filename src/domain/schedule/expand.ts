@@ -1,5 +1,4 @@
-import { UnsupportedError } from '../errors.js';
-import { addDays, isBefore, type CivilDate } from '../time/civil.js';
+import { addDays, daysBetween, isBefore, type CivilDate } from '../time/civil.js';
 import { clampRange, dateRange, daysOf, rangesIntersect, type DateRange } from '../time/range.js';
 import { isRunningOn, type Habit } from '../habit/habit.js';
 import { hitchNumberOn, hitchRange } from '../rotation/assignment.js';
@@ -89,6 +88,25 @@ function expandPerBlock(request: Expansion, times: number, role: DayRole): Oblig
   return entries;
 }
 
+/**
+ * Tiles the habit's life into windows of a fixed length, starting on the day
+ * it began. The tiles do not slide: a five in fourteen days habit is measured
+ * over the same fortnights every time, so two people can compare readings.
+ */
+function expandPerWindow(request: Expansion, times: number, windowDays: number): Obligation[] {
+  const anchor = request.habit.startsOn;
+  const firstTile = Math.floor(daysBetween(anchor, request.window.from) / windowDays);
+  const lastTile = Math.floor(daysBetween(anchor, request.window.to) / windowDays);
+  const entries: Obligation[] = [];
+  for (let tile = firstTile; tile <= lastTile; tile += 1) {
+    const from = addDays(anchor, tile * windowDays);
+    const live = habitWindow(request.habit, dateRange(from, addDays(from, windowDays - 1)));
+    if (live === undefined) continue;
+    entries.push(emit(request, 'window', live, times));
+  }
+  return entries;
+}
+
 export function expandHabit(request: Expansion): Obligation[] {
   const { cadence } = request.habit;
   switch (cadence.kind) {
@@ -100,8 +118,8 @@ export function expandHabit(request: Expansion): Obligation[] {
       return sortObligations(expandPerHitch(request, cadence.times));
     case 'per_block':
       return sortObligations(expandPerBlock(request, cadence.times, cadence.role));
-    default:
-      throw new UnsupportedError(`cadence ${cadence.kind} cannot be expanded yet`);
+    case 'per_window':
+      return sortObligations(expandPerWindow(request, cadence.times, cadence.windowDays));
   }
 }
 

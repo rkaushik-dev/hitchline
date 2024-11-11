@@ -5,7 +5,6 @@ import { roster } from '../../../../src/domain/rotation/roster.js';
 import { rosterOverride } from '../../../../src/domain/rotation/override.js';
 import { formatDateRange, parseDateRange } from '../../../../src/domain/time/range.js';
 import { parseInstant } from '../../../../src/domain/time/zone.js';
-import { UnsupportedError } from '../../../../src/domain/errors.js';
 import { aHabit, aMember } from '../../../support/fixtures.js';
 
 const r = parseDateRange;
@@ -122,18 +121,6 @@ describe('grace days', () => {
       window: r('2025-01-06..2025-01-06'),
     });
     expect(first && obligationKey(first)).toBe('hab_0123456789ABCDEF:day:2025-01-08');
-  });
-});
-
-describe('cadences that are not ready yet', () => {
-  it('says so rather than guessing', () => {
-    expect(() =>
-      expandHabit({
-        roster: plain,
-        habit: aHabit({ cadence: '5/14d' }),
-        window: r('2025-01-06..2025-02-02'),
-      }),
-    ).toThrow(UnsupportedError);
   });
 });
 
@@ -269,5 +256,65 @@ describe('a block cadence', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]!.times).toBe(2);
     expect(entries[0]!.scope).toBe('block');
+  });
+});
+
+describe('a rolling window cadence', () => {
+  it('tiles fortnights from the day the habit started', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '5/14d', startsOn: '2025-01-06' }),
+      window: r('2025-01-06..2025-02-16'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-01-19',
+      '2025-01-20..2025-02-02',
+      '2025-02-03..2025-02-16',
+    ]);
+    expect(entries.every((entry) => entry.times === 5)).toBe(true);
+  });
+
+  it('does not slide the tiles to fit the query', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '5/14d', startsOn: '2025-01-06' }),
+      window: r('2025-01-15..2025-01-25'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-01-19',
+      '2025-01-20..2025-02-02',
+    ]);
+  });
+
+  it('ignores tiles from before the habit existed', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '2/7d', startsOn: '2025-01-06' }),
+      window: r('2024-12-01..2025-01-12'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-01-12',
+    ]);
+  });
+
+  it('clips the last tile to the day the habit ends', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '2/7d', startsOn: '2025-01-06', endsOn: '2025-01-16' }),
+      window: r('2025-01-06..2025-01-31'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-01-12',
+      '2025-01-13..2025-01-16',
+    ]);
+  });
+
+  it('is scoped as a window', () => {
+    const entries = expandHabit({
+      roster: plain,
+      habit: aHabit({ cadence: '2/7d', startsOn: '2025-01-06' }),
+      window: r('2025-01-06..2025-01-12'),
+    });
+    expect(obligationKey(entries[0]!)).toBe('hab_0123456789ABCDEF:window:2025-01-12');
   });
 });
