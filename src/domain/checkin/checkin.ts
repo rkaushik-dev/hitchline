@@ -47,8 +47,8 @@ export interface CheckInInput {
 const NOTE_MAX = 500;
 const KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,64}$/;
 const MAX_READING = 100_000;
-/** A minute of slack, because a handset clock is never quite right. */
-const CLOCK_SLACK_MS = 60_000;
+/** How far ahead of us a handset clock may be before we call it wrong. */
+export const CLOCK_SLACK_MS = 5 * 60_000;
 
 export function isCheckInSource(value: string): value is CheckInSource {
   return (CHECK_IN_SOURCES as readonly string[]).includes(value);

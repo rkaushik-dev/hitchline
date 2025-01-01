@@ -61,8 +61,9 @@ describe('creating a check in', () => {
     );
   });
 
-  it('allows a minute of clock slack', () => {
-    expect(() => a({ recordedAt: parseInstant('2025-01-10T07:29:30Z') })).not.toThrow();
+  it('allows five minutes of clock slack', () => {
+    expect(() => a({ recordedAt: parseInstant('2025-01-10T07:26:00Z') })).not.toThrow();
+    expect(() => a({ recordedAt: parseInstant('2025-01-10T07:24:00Z') })).toThrow();
   });
 
   it('checks the shape of an idempotency key', () => {
@@ -120,7 +121,7 @@ describe('reporting delay', () => {
   });
 
   it('never goes negative on a slack clock', () => {
-    expect(reportingDelayMinutes(a({ recordedAt: parseInstant('2025-01-10T07:29:30Z') }))).toBe(0);
+    expect(reportingDelayMinutes(a({ recordedAt: parseInstant('2025-01-10T07:27:00Z') }))).toBe(0);
   });
 
   it('flags an entry that arrived more than a day late', () => {
