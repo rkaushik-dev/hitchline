@@ -35,7 +35,7 @@ export function isVisibility(value: string): value is Visibility {
 }
 
 export function sharingPreference(input: SharingInput): SharingPreference {
-  const fallback = input.fallback ?? 'private';
+  const fallback: string = input.fallback ?? 'private';
   if (!isVisibility(fallback)) {
     throw ValidationError.field('fallback', `is not a visibility: ${fallback}`);
   }
