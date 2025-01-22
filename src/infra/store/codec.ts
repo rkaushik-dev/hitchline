@@ -14,9 +14,17 @@ import {
   type Visibility,
 } from '../../domain/crew/sharing.js';
 import { habit, type Habit } from '../../domain/habit/habit.js';
+import { nudgePolicy, type NudgeChannel, type NudgePolicy } from '../../domain/nudge/policy.js';
 import { parseCadence, formatCadence } from '../../domain/habit/cadence.js';
 import { formatTarget, parseTarget } from '../../domain/habit/target.js';
-import { checkInId, crewId, crewMemberId, habitId, type HabitId } from '../../domain/ids.js';
+import {
+  checkInId,
+  crewId,
+  crewMemberId,
+  habitId,
+  type CrewMemberId,
+  type HabitId,
+} from '../../domain/ids.js';
 import {
   rosterOverride,
   type OverrideReason,
@@ -29,6 +37,7 @@ import {
   type DayRole,
 } from '../../domain/rotation/pattern.js';
 import { shield, type Shield, type ShieldReason } from '../../domain/adherence/shield.js';
+import { formatClockRange } from '../../domain/time/clocktime.js';
 import { formatCivilDate, parseCivilDate } from '../../domain/time/civil.js';
 import { formatDateRange, parseDateRange } from '../../domain/time/range.js';
 import { formatInstant, parseInstant } from '../../domain/time/zone.js';
@@ -273,4 +282,30 @@ export function decodeSharing(row: Row): SharingPreference {
     fallback: text(row, 'fallback') as Visibility,
     perHabit,
   });
+}
+
+export function encodePolicy(memberId: CrewMemberId, policy: NudgePolicy): Row {
+  return {
+    memberId,
+    quietHours: formatClockRange(policy.quietHours),
+    minGapMinutes: policy.minGapMinutes,
+    maxPerDay: policy.maxPerDay,
+    leadMinutes: policy.leadMinutes,
+    roles: [...policy.roles],
+    channel: policy.channel,
+  };
+}
+
+export function decodePolicy(row: Row): { memberId: CrewMemberId; policy: NudgePolicy } {
+  return {
+    memberId: crewMemberId(text(row, 'memberId')),
+    policy: nudgePolicy({
+      quietHours: text(row, 'quietHours'),
+      minGapMinutes: count(row, 'minGapMinutes'),
+      maxPerDay: count(row, 'maxPerDay'),
+      leadMinutes: count(row, 'leadMinutes'),
+      roles: words(row, 'roles'),
+      channel: text(row, 'channel') as NudgeChannel,
+    }),
+  };
 }
