@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Config } from '../config/env.js';
 import type { Ports } from '../app/ports.js';
+import { loggerFor } from '../infra/logger.js';
 import { problemFor, statusFor } from './errors.js';
 
 /**
@@ -20,7 +21,7 @@ export interface HealthBody {
 
 export function buildServer(options: ServerOptions): FastifyInstance {
   const app = Fastify({
-    logger: options.config.logLevel === 'silent' ? false : { level: options.config.logLevel },
+    logger: loggerFor(options.config),
     disableRequestLogging: options.config.logLevel !== 'trace',
   });
 
