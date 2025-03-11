@@ -26,5 +26,3 @@ export async function main(): Promise<void> {
   await app.listen({ host: config.host, port: config.port });
   app.log.info({ store: config.store, path: config.storePath }, 'hitchline is up');
 }
-
-await main();
