@@ -3,6 +3,7 @@ import { readConfig } from '../config/env.js';
 import { closeStore, openStore } from '../infra/store/open.js';
 import { consoleContext, type Context } from './context.js';
 import { memberCommands } from './commands/member.js';
+import { checkInCommands, habitCommands } from './commands/habit.js';
 
 /**
  * The operator command line. It opens the same store the server does, which is
@@ -16,6 +17,8 @@ export function buildProgram(context: () => Context): Command {
     .version('0.1.0')
     .showHelpAfterError();
   program.addCommand(memberCommands(context));
+  program.addCommand(habitCommands(context));
+  program.addCommand(checkInCommands(context));
   return program;
 }
 
