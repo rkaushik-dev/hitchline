@@ -1,4 +1,4 @@
-import { open, mkdir, readFile, rename, writeFile, type FileHandle } from 'node:fs/promises';
+import { mkdir, open, readFile, rm, writeFile, type FileHandle } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { ValidationError } from '../../domain/errors.js';
 import type { Row } from './codec.js';
@@ -141,15 +141,23 @@ export async function openJournal(path: string): Promise<Journal> {
 
     read: () => readJournal(path),
 
+    /**
+     * Writes the new set out beside the journal first, then over the journal
+     * itself. Replacing by rename would be neater, but a rename fails on
+     * windows while any other handle holds the file open, and a maintenance
+     * command run against a live store is exactly when this is called.
+     */
     async rewrite(entries: readonly JournalEntry[]): Promise<void> {
       const temporary = `${path}.rewrite`;
-      const body = entries.map((entry) => JSON.stringify(entry)).join('\n');
-      await writeFile(temporary, entries.length === 0 ? '' : `${body}\n`, 'utf8');
+      const body = entries.map((entry) => JSON.stringify(entry)).join(String.fromCharCode(10));
+      const text = entries.length === 0 ? '' : `${body}\n`;
+      await writeFile(temporary, text, 'utf8');
       if (handle !== undefined) {
         await handle.close();
         handle = undefined;
       }
-      await rename(temporary, path);
+      await writeFile(path, text, 'utf8');
+      await rm(temporary, { force: true });
       seq = entries.reduce((highest, entry) => Math.max(highest, entry.seq), 0);
     },
 

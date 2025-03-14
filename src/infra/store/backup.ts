@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { ConflictError, ValidationError } from '../../domain/errors.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../domain/errors.js';
 import { survivors, renumber } from './compact.js';
 import { isRecordKind, type Journal, type JournalEntry, type RecordKind } from './journal.js';
 
@@ -62,7 +62,15 @@ function checkEntry(value: unknown, index: number): JournalEntry {
 }
 
 export async function readBackup(path: string): Promise<Backup> {
-  const text = await readFile(path, 'utf8');
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new NotFoundError('backup file', path);
+    }
+    throw cause;
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
