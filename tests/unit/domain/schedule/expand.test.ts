@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { expandAll, expandHabit, habitWindow } from '../../../../src/domain/schedule/expand.js';
+import {
+  expandAll,
+  expandHabit,
+  habitWindow,
+  revisionSegments,
+} from '../../../../src/domain/schedule/expand.js';
+import { historyOf, revise } from '../../../../src/domain/habit/revision.js';
+import { parseCadence } from '../../../../src/domain/habit/cadence.js';
 import { obligationKey } from '../../../../src/domain/schedule/obligation.js';
 import { roster } from '../../../../src/domain/rotation/roster.js';
 import { rosterOverride } from '../../../../src/domain/rotation/override.js';
@@ -316,5 +323,94 @@ describe('a rolling window cadence', () => {
       window: r('2025-01-06..2025-01-12'),
     });
     expect(obligationKey(entries[0]!)).toBe('hab_0123456789ABCDEF:window:2025-01-12');
+  });
+});
+
+describe('expanding across revisions', () => {
+  it('behaves as before when no history is given', () => {
+    const habit = aHabit({ cadence: '1/day', startsOn: '2025-01-06' });
+    const entries = expandHabit({ roster: plain, habit, window: r('2025-01-06..2025-01-08') });
+    expect(entries).toHaveLength(3);
+  });
+
+  it('splits the window at the day a revision starts', () => {
+    const habit = aHabit({ cadence: '1/day', startsOn: '2025-01-06' });
+    const history = revise(historyOf(habit), {
+      from: r('2025-01-08..2025-01-08').from,
+      cadence: parseCadence('1/onshift-day'),
+    });
+    const entries = expandHabit({
+      roster: roster(aMember({ pattern: '2on 2off', anchor: '2025-01-06' })),
+      habit,
+      history,
+      window: r('2025-01-06..2025-01-11'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-01-06',
+      '2025-01-07..2025-01-07',
+      '2025-01-10..2025-01-10',
+      '2025-01-11..2025-01-11',
+    ]);
+  });
+
+  it('uses the later revision for a hitch that straddles the change', () => {
+    const habit = aHabit({ cadence: '2/hitch', startsOn: '2025-01-06' });
+    const history = revise(historyOf(habit), {
+      from: r('2025-01-20..2025-01-20').from,
+      cadence: parseCadence('5/hitch'),
+    });
+    const entries = expandHabit({
+      roster: plain,
+      habit,
+      history,
+      window: r('2025-01-06..2025-02-02'),
+    });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.times).toBe(5);
+  });
+
+  it('carries a target that only the later revision has', () => {
+    const habit = aHabit({ cadence: '1/day', startsOn: '2025-01-06' });
+    const history = revise(historyOf(habit), {
+      from: r('2025-01-08..2025-01-08').from,
+      cadence: parseCadence('1/day'),
+      graceDays: 2,
+    });
+    const entries = expandHabit({
+      roster: plain,
+      habit,
+      history,
+      window: r('2025-01-06..2025-01-09'),
+    });
+    expect(entries.map((entry) => formatDateRange(entry.window))).toEqual([
+      '2025-01-06..2025-01-06',
+      '2025-01-07..2025-01-07',
+      '2025-01-08..2025-01-10',
+      '2025-01-09..2025-01-11',
+    ]);
+  });
+});
+
+describe('revisionSegments', () => {
+  it('clips each stretch to the window asked about', () => {
+    const habit = aHabit({ cadence: '1/day', startsOn: '2025-01-06' });
+    const history = revise(historyOf(habit), {
+      from: r('2025-02-01..2025-02-01').from,
+      cadence: parseCadence('1/day'),
+    });
+    const segments = revisionSegments(history, r('2025-01-20..2025-02-10'));
+    expect(segments.map(formatDateRange)).toEqual([
+      '2025-01-20..2025-01-31',
+      '2025-02-01..2025-02-10',
+    ]);
+  });
+
+  it('drops a stretch the window misses', () => {
+    const habit = aHabit({ cadence: '1/day', startsOn: '2025-01-06' });
+    const history = revise(historyOf(habit), {
+      from: r('2025-02-01..2025-02-01').from,
+      cadence: parseCadence('1/day'),
+    });
+    expect(revisionSegments(history, r('2025-02-05..2025-02-10'))).toHaveLength(1);
   });
 });

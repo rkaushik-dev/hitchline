@@ -1,11 +1,13 @@
 import { addDays, daysBetween, isBefore, type CivilDate } from '../time/civil.js';
 import { clampRange, dateRange, daysOf, rangesIntersect, type DateRange } from '../time/range.js';
 import { isRunningOn, type Habit } from '../habit/habit.js';
+import { asOf, type HabitHistory } from '../habit/revision.js';
 import { hitchNumberOn, hitchRange } from '../rotation/assignment.js';
 import { cycleLength, type DayRole } from '../rotation/pattern.js';
 import { effectiveBlocks, roleFor, type Roster } from '../rotation/roster.js';
 import {
   obligation,
+  obligationKey,
   sortObligations,
   type Obligation,
   type ObligationScope,
@@ -20,6 +22,10 @@ export interface Expansion {
   readonly roster: Roster;
   readonly habit: Habit;
   readonly window: DateRange;
+  /** When given, each stretch of the window is expanded against the revision
+   * that was in force over it, so a cadence changed in March does not rewrite
+   * what January asked for. */
+  readonly history?: HabitHistory;
 }
 
 function withGrace(range: DateRange, graceDays: number): DateRange {
@@ -107,7 +113,7 @@ function expandPerWindow(request: Expansion, times: number, windowDays: number):
   return entries;
 }
 
-export function expandHabit(request: Expansion): Obligation[] {
+function expandOne(request: Expansion): Obligation[] {
   const { cadence } = request.habit;
   switch (cadence.kind) {
     case 'per_day':
@@ -121,6 +127,41 @@ export function expandHabit(request: Expansion): Obligation[] {
     case 'per_window':
       return sortObligations(expandPerWindow(request, cadence.times, cadence.windowDays));
   }
+}
+
+/**
+ * The stretches of a window each revision covers, clipped to the window. A
+ * habit with no history behaves as one stretch, which is what every caller
+ * that predates revisions gets.
+ */
+export function revisionSegments(history: HabitHistory, window: DateRange): DateRange[] {
+  const segments: DateRange[] = [];
+  const revisions = history.revisions;
+  for (const [index, revision] of revisions.entries()) {
+    const next = revisions[index + 1];
+    const from = revision.from;
+    const to = next === undefined ? window.to : addDays(next.from, -1);
+    if (isBefore(to, from)) continue;
+    const clipped = clampRange(dateRange(from, to), window);
+    if (clipped !== undefined) segments.push(clipped);
+  }
+  return segments;
+}
+
+export function expandHabit(request: Expansion): Obligation[] {
+  const history = request.history;
+  if (history === undefined) return expandOne(request);
+
+  const seen = new Map<string, Obligation>();
+  for (const segment of revisionSegments(history, request.window)) {
+    const habit = asOf(request.habit, history, segment.from);
+    for (const entry of expandOne({ ...request, habit, window: segment })) {
+      // A hitch that straddles a revision comes back from both stretches. The
+      // later revision wins, because that is the one in force when it fell due.
+      seen.set(obligationKey(entry), entry);
+    }
+  }
+  return sortObligations([...seen.values()]);
 }
 
 /**
