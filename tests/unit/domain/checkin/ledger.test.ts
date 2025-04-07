@@ -181,3 +181,45 @@ describe('reading back', () => {
     expect(found.map((item) => item.id)).toEqual(['chk_0000000000000002']);
   });
 });
+
+describe('the index', () => {
+  it('finds an entry by id without walking the list', () => {
+    const ledger = appendAll(emptyLedger(), [
+      entry({ id: 'chk_0000000000000001', at: '2025-01-10T06:00:00Z' }),
+      entry({ id: 'chk_0000000000000002', at: '2025-01-10T18:00:00Z' }),
+    ]);
+    expect(ledger.byId.size).toBe(2);
+    expect(ledger.byId.get('chk_0000000000000002')?.id).toBe('chk_0000000000000002');
+  });
+
+  it('holds the first entry for each idempotency key', () => {
+    const ledger = append(emptyLedger(), entry({ key: 'watch-2025-01-10' })).ledger;
+    expect(ledger.byKey.get(`${treadmill}:watch-2025-01-10`)?.id).toBe('chk_0123456789ABCDEF');
+  });
+
+  it('keeps voided entries out of the per habit index', () => {
+    const ledger = append(emptyLedger(), entry({ id: 'chk_0000000000000001' })).ledger;
+    expect(ledger.liveByHabit.get(treadmill)).toHaveLength(1);
+    const voided = voidEntry(
+      ledger,
+      checkInId('chk_0000000000000001'),
+      parseInstant('2025-01-11T09:00:00Z'),
+    );
+    expect(voided.liveByHabit.get(treadmill)).toBeUndefined();
+    expect(voided.byId.size).toBe(1);
+  });
+
+  it('rebuilds the index on an amendment', () => {
+    const ledger = append(emptyLedger(), entry({ id: 'chk_0000000000000001', reading: 20 })).ledger;
+    const amended = amendEntry(ledger, checkInId('chk_0000000000000001'), 25);
+    expect(amended.byId.get('chk_0000000000000001')?.reading).toBe(25);
+    expect(amended.liveByHabit.get(treadmill)?.[0]?.reading).toBe(25);
+  });
+
+  it('is empty for an empty ledger', () => {
+    const ledger = emptyLedger();
+    expect(ledger.byId.size).toBe(0);
+    expect(ledger.byKey.size).toBe(0);
+    expect(ledger.liveByHabit.size).toBe(0);
+  });
+});

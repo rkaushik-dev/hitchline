@@ -7,9 +7,18 @@ import { amendReading, compareCheckIns, isVoided, voidCheckIn, type CheckIn } fr
  * The record of what was done. Nothing is ever removed: an entry that turns out
  * to be wrong is voided and stays in place, because a supervisor asking why an
  * adherence figure moved needs to see the entry that moved it.
+ *
+ * Lookups go through an index built when the ledger is made. Building it costs
+ * a pass over the entries, which the sort already costs, and it takes the id
+ * and idempotency lookups off a linear scan. A hitch of check ins for a crew
+ * of forty is a few thousand rows, and the import path asks for a key on every
+ * one of them.
  */
 export interface Ledger {
   readonly entries: readonly CheckIn[];
+  readonly byId: ReadonlyMap<string, CheckIn>;
+  readonly byKey: ReadonlyMap<string, CheckIn>;
+  readonly liveByHabit: ReadonlyMap<string, readonly CheckIn[]>;
 }
 
 export interface AppendResult {
@@ -19,12 +28,36 @@ export interface AppendResult {
   readonly entry: CheckIn;
 }
 
+function keyOf(entry: CheckIn): string | undefined {
+  return entry.idempotencyKey === undefined
+    ? undefined
+    : `${entry.habitId}:${entry.idempotencyKey}`;
+}
+
+function index(entries: readonly CheckIn[]): Ledger {
+  const byId = new Map<string, CheckIn>();
+  const byKey = new Map<string, CheckIn>();
+  const liveByHabit = new Map<string, CheckIn[]>();
+
+  for (const entry of entries) {
+    byId.set(entry.id, entry);
+    const key = keyOf(entry);
+    if (key !== undefined && !byKey.has(key)) byKey.set(key, entry);
+    if (isVoided(entry)) continue;
+    const held = liveByHabit.get(entry.habitId);
+    if (held === undefined) liveByHabit.set(entry.habitId, [entry]);
+    else held.push(entry);
+  }
+
+  return { entries, byId, byKey, liveByHabit };
+}
+
 export function emptyLedger(): Ledger {
-  return { entries: [] };
+  return index([]);
 }
 
 export function ledgerOf(entries: readonly CheckIn[]): Ledger {
-  return { entries: [...entries].sort(compareCheckIns) };
+  return index([...entries].sort(compareCheckIns));
 }
 
 export function size(ledger: Ledger): number {
@@ -36,25 +69,25 @@ export function liveEntries(ledger: Ledger): CheckIn[] {
 }
 
 export function findById(ledger: Ledger, id: CheckInId): CheckIn | undefined {
-  return ledger.entries.find((entry) => entry.id === id);
+  return ledger.byId.get(id);
 }
 
 export function findByKey(ledger: Ledger, habitId: HabitId, key: string): CheckIn | undefined {
-  return ledger.entries.find((entry) => entry.habitId === habitId && entry.idempotencyKey === key);
+  return ledger.byKey.get(`${habitId}:${key}`);
 }
 
 export function append(ledger: Ledger, entry: CheckIn): AppendResult {
-  if (findById(ledger, entry.id) !== undefined) {
+  if (ledger.byId.has(entry.id)) {
     throw new ConflictError(`check in ${entry.id} is already in the ledger`);
   }
-  if (entry.idempotencyKey !== undefined) {
-    const seen = findByKey(ledger, entry.habitId, entry.idempotencyKey);
+  const key = keyOf(entry);
+  if (key !== undefined) {
+    const seen = ledger.byKey.get(key);
     if (seen !== undefined) {
       return { ledger, accepted: false, entry: seen };
     }
   }
-  const entries = [...ledger.entries, entry].sort(compareCheckIns);
-  return { ledger: { entries }, accepted: true, entry };
+  return { ledger: ledgerOf([...ledger.entries, entry]), accepted: true, entry };
 }
 
 export function appendAll(ledger: Ledger, entries: readonly CheckIn[]): Ledger {
@@ -66,13 +99,10 @@ export function appendAll(ledger: Ledger, entries: readonly CheckIn[]): Ledger {
 }
 
 function replace(ledger: Ledger, id: CheckInId, change: (entry: CheckIn) => CheckIn): Ledger {
-  const existing = findById(ledger, id);
-  if (existing === undefined) {
+  if (!ledger.byId.has(id)) {
     throw new NotFoundError('check in', id);
   }
-  return {
-    entries: ledger.entries.map((entry) => (entry.id === id ? change(entry) : entry)),
-  };
+  return index(ledger.entries.map((entry) => (entry.id === id ? change(entry) : entry)));
 }
 
 export function voidEntry(ledger: Ledger, id: CheckInId, at: Instant): Ledger {
@@ -84,7 +114,7 @@ export function amendEntry(ledger: Ledger, id: CheckInId, reading: number | unde
 }
 
 export function entriesForHabit(ledger: Ledger, habitId: HabitId): CheckIn[] {
-  return liveEntries(ledger).filter((entry) => entry.habitId === habitId);
+  return [...(ledger.liveByHabit.get(habitId) ?? [])];
 }
 
 /** Entries whose event time falls in the half open interval, oldest first. */
@@ -100,5 +130,5 @@ export function lastEntry(ledger: Ledger): CheckIn | undefined {
 }
 
 export function habitsTouched(ledger: Ledger): HabitId[] {
-  return [...new Set(liveEntries(ledger).map((entry) => entry.habitId))].sort();
+  return [...ledger.liveByHabit.keys()].sort() as HabitId[];
 }
