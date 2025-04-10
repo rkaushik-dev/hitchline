@@ -4,6 +4,7 @@ import { habitId as parseHabitId, crewMemberId } from '../../domain/ids.js';
 import { habitsService } from '../../app/habits.service.js';
 import type { Ports } from '../../app/ports.js';
 import { requireScope, requireSelfOrAdmin } from '../auth.js';
+import { pageBody, paginate, readPageRequest } from '../pagination.js';
 import { createHabitSchema, parseBody, updateHabitSchema } from '../schemas.js';
 import { habitView } from '../views.js';
 
@@ -39,7 +40,8 @@ export function registerHabitRoutes(app: FastifyInstance, ports: Ports): void {
     const memberId = crewMemberId(query.memberId);
     requireSelfOrAdmin(request, memberId);
     const found = await habits.listFor(memberId);
-    return { habits: found.map(habitView) };
+    const page = paginate(found, readPageRequest(request.query), (habit) => habit.id);
+    return pageBody(page, habitView);
   });
 
   app.get('/habits/:habitId', async (request) => {

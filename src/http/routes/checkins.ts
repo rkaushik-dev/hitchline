@@ -6,6 +6,7 @@ import { checkInsService } from '../../app/checkins.service.js';
 import { habitsService } from '../../app/habits.service.js';
 import type { Ports } from '../../app/ports.js';
 import { requireScope, requireSelfOrAdmin } from '../auth.js';
+import { pageBody, paginate, readPageRequest } from '../pagination.js';
 import { amendCheckInSchema, parseBody, recordCheckInSchema } from '../schemas.js';
 import { checkInView, resolvedView } from '../views.js';
 
@@ -42,7 +43,8 @@ export function registerCheckInRoutes(app: FastifyInstance, ports: Ports): void 
     requireSelfOrAdmin(request, memberId);
     const window = query.window === undefined ? undefined : parseDateRange(query.window);
     const found = await checkIns.listFor(memberId, window);
-    return { checkIns: found.map(resolvedView) };
+    const page = paginate(found, readPageRequest(request.query), (item) => item.checkIn.id);
+    return pageBody(page, resolvedView);
   });
 
   app.post('/check-ins/:checkInId/void', async (request) => {

@@ -112,7 +112,7 @@ describe('reading habits', () => {
     await createHabit();
     const response = await call('GET', `/habits?memberId=${ada}`, adaToken.token);
     expect(response.statusCode).toBe(200);
-    expect(response.json<{ habits: unknown[] }>().habits).toHaveLength(1);
+    expect(response.json<{ items: unknown[] }>().items).toHaveLength(1);
   });
 
   it('needs a member id', async () => {
@@ -204,17 +204,16 @@ describe('recording a check in', () => {
   it('lists what a member has recorded', async () => {
     await call('POST', '/check-ins', adaToken.token, { habitId: habitIdValue });
     const response = await call('GET', `/members/${ada}/check-ins`, adaToken.token);
-    const body = response.json<{ checkIns: { onDate: string }[] }>();
-    expect(body.checkIns).toHaveLength(1);
-    expect(body.checkIns[0]?.onDate).toBe('2025-01-10');
+    const body = response.json<{ items: { onDate: string }[] }>();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]?.onDate).toBe('2025-01-10');
   });
 
   it('narrows a list to a window', async () => {
     await call('POST', '/check-ins', adaToken.token, { habitId: habitIdValue });
     const url = `/members/${ada}/check-ins?window=2025-01-01..2025-01-05`;
-    expect(
-      (await call('GET', url, adaToken.token)).json<{ checkIns: unknown[] }>().checkIns,
-    ).toHaveLength(0);
+    const listed = await call('GET', url, adaToken.token);
+    expect(listed.json<{ items: unknown[] }>().items).toHaveLength(0);
   });
 
   it('voids one', async () => {
@@ -222,7 +221,7 @@ describe('recording a check in', () => {
     const id = created.json<{ id: string }>().id;
     expect((await call('POST', `/check-ins/${id}/void`, adaToken.token)).statusCode).toBe(200);
     const listed = await call('GET', `/members/${ada}/check-ins`, adaToken.token);
-    expect(listed.json<{ checkIns: unknown[] }>().checkIns).toHaveLength(0);
+    expect(listed.json<{ items: unknown[] }>().items).toHaveLength(0);
   });
 
   it('amends a reading', async () => {
