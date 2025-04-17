@@ -209,3 +209,45 @@ describe('nudge policy over http', () => {
     expect(response.statusCode).toBe(400);
   });
 });
+
+describe('the metrics endpoint', () => {
+  it('counts what it served', async () => {
+    await app.inject({ method: 'GET', url: '/health' });
+    const response = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/plain');
+    expect(response.body).toContain('hitchline_requests_total');
+    expect(response.body).toContain('method="GET"');
+  });
+
+  it('records how long a request took', async () => {
+    await app.inject({ method: 'GET', url: '/health' });
+    const response = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(response.body).toContain('hitchline_request_ms_count');
+  });
+});
+
+describe('the request id', () => {
+  it('comes back on every response', async () => {
+    const response = await app.inject({ method: 'GET', url: '/health' });
+    expect(response.headers['x-request-id']).toBeDefined();
+  });
+});
+
+describe('the write limit', () => {
+  it('turns a burst away with 429', async () => {
+    const limited = buildApp({
+      config,
+      ports: memoryStore({ clock: fixedClock('2025-04-16T09:00:00Z'), ids: sequentialIds() }),
+      burst: 2,
+      writesPerMinute: 60,
+    });
+    const headers = { authorization: `Bearer ${adaToken.token}` };
+    const payload = { name: 'x', site: 'y', siteZone: 'UTC' };
+    await limited.inject({ method: 'POST', url: '/crews', headers, payload });
+    await limited.inject({ method: 'POST', url: '/crews', headers, payload });
+    const third = await limited.inject({ method: 'POST', url: '/crews', headers, payload });
+    expect(third.statusCode).toBe(429);
+    await limited.close();
+  });
+});
