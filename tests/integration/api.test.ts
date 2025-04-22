@@ -251,3 +251,57 @@ describe('the write limit', () => {
     await limited.close();
   });
 });
+
+describe('the crew comparison', () => {
+  async function crewWithBoth(): Promise<string> {
+    const created = await call('POST', '/crews', adminToken.token, {
+      name: 'Alpha production',
+      site: 'Grane B',
+      siteZone: 'Europe/Oslo',
+    });
+    const id = created.json<{ id: string }>().id;
+    await call('POST', `/crews/${id}/members`, adminToken.token, {
+      memberId: ada,
+      from: '2025-01-01',
+    });
+    await call('POST', `/crews/${id}/members`, adminToken.token, {
+      memberId: bo,
+      from: '2025-01-01',
+    });
+    return id;
+  }
+
+  it('lists a line for each member', async () => {
+    const id = await crewWithBoth();
+    const url = `/crews/${id}/comparison?window=2025-01-06..2025-01-19&on=2025-01-20`;
+    const response = await call('GET', url, adaToken.token);
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ lines: unknown[] }>().lines).toHaveLength(2);
+  });
+
+  it('needs a window and a date', async () => {
+    const id = await crewWithBoth();
+    const noWindow = await call('GET', `/crews/${id}/comparison?on=2025-01-20`, adaToken.token);
+    expect(noWindow.statusCode).toBe(400);
+    const noDate = await call(
+      'GET',
+      `/crews/${id}/comparison?window=2025-01-06..2025-01-19`,
+      adaToken.token,
+    );
+    expect(noDate.statusCode).toBe(400);
+  });
+
+  it('says how much it left out', async () => {
+    const id = await crewWithBoth();
+    await call('POST', '/habits', boToken.token, {
+      memberId: bo,
+      name: 'Bank the sleep hours',
+      cadence: '1/day',
+      startsOn: '2025-01-06',
+    });
+    const url = `/crews/${id}/comparison?window=2025-01-06..2025-01-19&on=2025-01-20`;
+    const response = await call('GET', url, adaToken.token);
+    const lines = response.json<{ lines: { memberId: string; hidden: number }[] }>().lines;
+    expect(lines.find((line) => line.memberId === bo)?.hidden).toBe(1);
+  });
+});
