@@ -7,6 +7,7 @@ import { checkInCommands, habitCommands } from './commands/habit.js';
 import { reportCommands } from './commands/report.js';
 import { storeCommands } from './commands/store.js';
 import { crewCommands, demoCommands } from './commands/crew.js';
+import { exportCommands } from './commands/export.js';
 
 /**
  * The operator command line. It opens the same store the server does, which is
@@ -26,6 +27,7 @@ export function buildProgram(context: () => Context): Command {
   program.addCommand(storeCommands(context));
   program.addCommand(crewCommands(context));
   program.addCommand(demoCommands(context));
+  program.addCommand(exportCommands(context));
   return program;
 }
 
