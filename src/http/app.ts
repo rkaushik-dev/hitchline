@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Config } from '../config/env.js';
 import type { Ports } from '../app/ports.js';
 import { registerAuth } from './auth.js';
+import { openApiDocument } from './manifest.js';
 import { createMetrics, LATENCY_BOUNDS, type Metrics } from './metrics.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
 import { registerRequestContext } from './middleware/request-context.js';
@@ -25,6 +26,8 @@ export interface BuiltApp {
   readonly app: FastifyInstance;
   readonly metrics: Metrics;
 }
+
+export const API_VERSION = '0.1.0';
 
 const DEFAULT_BURST = 30;
 const DEFAULT_WRITES_PER_MINUTE = 120;
@@ -59,6 +62,8 @@ export function buildAppWithMetrics(options: AppOptions): BuiltApp {
   app.get('/metrics', (_request, reply) =>
     reply.header('content-type', 'text/plain; version=0.0.4').send(metrics.render()),
   );
+
+  app.get('/openapi.json', () => openApiDocument({ version: API_VERSION }));
 
   registerRoutes(app, options.ports);
   return { app, metrics };

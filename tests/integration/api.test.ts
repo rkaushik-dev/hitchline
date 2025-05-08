@@ -305,3 +305,13 @@ describe('the crew comparison', () => {
     expect(lines.find((line) => line.memberId === bo)?.hidden).toBe(1);
   });
 });
+
+describe('the api description', () => {
+  it('is served without a token', async () => {
+    const response = await app.inject({ method: 'GET', url: '/openapi.json' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ openapi: string; paths: Record<string, unknown> }>();
+    expect(body.openapi).toBe('3.1.0');
+    expect(Object.keys(body.paths)).toContain('/habits');
+  });
+});
