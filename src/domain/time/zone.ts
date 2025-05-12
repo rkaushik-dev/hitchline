@@ -1,5 +1,5 @@
 import { ValidationError } from '../errors.js';
-import { civilDate, formatCivilDate, type CivilDate } from './civil.js';
+import { addDays, civilDate, formatCivilDate, type CivilDate } from './civil.js';
 import { clockTime, type ClockTime } from './clocktime.js';
 
 /**
@@ -195,4 +195,37 @@ export function describeZoned(zone: ZoneId, at: Instant): string {
   const wall = clockTimeIn(zone, at);
   const clock = `${String(wall.hour).padStart(2, '0')}:${String(wall.minute).padStart(2, '0')}`;
   return `${date} ${clock}${sign}${hours}:${minutes}`;
+}
+
+export interface DayBounds {
+  /** The first instant of the local day. */
+  readonly from: Instant;
+  /** The first instant of the next local day, so the interval is half open. */
+  readonly to: Instant;
+}
+
+/**
+ * The instants a local day covers. A day is not always twenty four hours: it
+ * is twenty three when the clocks go forward and twenty five when they go
+ * back, and a report that assumes otherwise drops or double counts an hour of
+ * check ins twice a year.
+ */
+export function dayBoundsIn(zone: ZoneId, date: CivilDate): DayBounds {
+  const from = startOfDayIn(zone, date);
+  const nextDay = addDays(date, 1);
+  return { from, to: startOfDayIn(zone, nextDay) };
+}
+
+export function dayLengthMinutes(zone: ZoneId, date: CivilDate): number {
+  const bounds = dayBoundsIn(zone, date);
+  return Math.round((bounds.to.epochMs - bounds.from.epochMs) / MINUTE_MS);
+}
+
+/** True when the offset changes at some point during the local day. */
+export function hasTransition(zone: ZoneId, date: CivilDate): boolean {
+  return dayLengthMinutes(zone, date) !== 24 * 60;
+}
+
+export function containsInstant(bounds: DayBounds, at: Instant): boolean {
+  return at.epochMs >= bounds.from.epochMs && at.epochMs < bounds.to.epochMs;
 }

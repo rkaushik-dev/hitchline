@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   civilDateIn,
+  containsInstant,
+  dayBoundsIn,
+  dayLengthMinutes,
+  hasTransition,
   clockTimeIn,
   describeZoned,
   formatInstant,
@@ -138,5 +142,52 @@ describe('startOfDayIn', () => {
   it('copes with a zone whose day starts inside a transition', () => {
     const at = startOfDayIn('America/Santiago', d('2025-09-07'));
     expect(civilDateIn('America/Santiago', at)).toEqual(d('2025-09-07'));
+  });
+});
+
+describe('the length of a local day', () => {
+  it('is twenty four hours on an ordinary day', () => {
+    expect(dayLengthMinutes('Europe/London', d('2025-06-01'))).toBe(1440);
+    expect(hasTransition('Europe/London', d('2025-06-01'))).toBe(false);
+  });
+
+  it('is twenty three hours when the clocks go forward', () => {
+    expect(dayLengthMinutes('Europe/London', d('2025-03-30'))).toBe(1380);
+    expect(hasTransition('Europe/London', d('2025-03-30'))).toBe(true);
+  });
+
+  it('is twenty five hours when the clocks go back', () => {
+    expect(dayLengthMinutes('Europe/London', d('2025-10-26'))).toBe(1500);
+  });
+
+  it('is twenty four hours everywhere in a zone that does not change', () => {
+    expect(dayLengthMinutes('Asia/Kolkata', d('2025-03-30'))).toBe(1440);
+    expect(dayLengthMinutes('Asia/Kolkata', d('2025-10-26'))).toBe(1440);
+  });
+
+  it('handles a zone whose day starts in the gap', () => {
+    // Santiago moves the clocks at midnight, so the seventh has no 00:00.
+    expect(dayLengthMinutes('America/Santiago', d('2025-09-07'))).toBe(1380);
+  });
+});
+
+describe('day bounds', () => {
+  it('are half open, so the next day starts where this one ends', () => {
+    const first = dayBoundsIn('Europe/Oslo', d('2025-06-01'));
+    const second = dayBoundsIn('Europe/Oslo', d('2025-06-02'));
+    expect(first.to.epochMs).toBe(second.from.epochMs);
+  });
+
+  it('hold an instant inside the day and not the one after', () => {
+    const bounds = dayBoundsIn('Europe/Oslo', d('2025-06-01'));
+    expect(containsInstant(bounds, parseInstant('2025-06-01T12:00:00Z'))).toBe(true);
+    expect(containsInstant(bounds, bounds.to)).toBe(false);
+    expect(containsInstant(bounds, parseInstant('2025-05-31T21:00:00Z'))).toBe(false);
+  });
+
+  it('cover the short day without a gap', () => {
+    const short = dayBoundsIn('Europe/London', d('2025-03-30'));
+    const after = dayBoundsIn('Europe/London', d('2025-03-31'));
+    expect(short.to.epochMs).toBe(after.from.epochMs);
   });
 });
