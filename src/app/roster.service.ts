@@ -16,6 +16,7 @@ import { formatCivilDate, parseCivilDate, type CivilDate } from '../domain/time/
 import { daysOf, parseDateRange, type DateRange } from '../domain/time/range.js';
 import type { DayRole } from '../domain/rotation/pattern.js';
 import type { ZoneId } from '../domain/time/zone.js';
+import { domainEvent } from './events.js';
 import type { Ports } from './ports.js';
 
 export interface RosterDay {
@@ -108,6 +109,14 @@ export function rosterService(ports: Ports): RosterService {
       const existing = await ports.overrides.byMember(member.id);
       checkNoClashes([...existing, entry]);
       await ports.overrides.add(entry);
+      await ports.events?.publish(
+        domainEvent({
+          name: 'roster.held',
+          at: ports.clock.now(),
+          memberId: member.id,
+          detail: `${command.range} as ${command.role}`,
+        }),
+      );
       return entry;
     },
 
@@ -122,6 +131,14 @@ export function rosterService(ports: Ports): RosterService {
         grantedAt: ports.clock.now(),
       });
       await ports.shields.add(entry);
+      await ports.events?.publish(
+        domainEvent({
+          name: 'shield.granted',
+          at: ports.clock.now(),
+          memberId: member.id,
+          detail: `${command.range} for ${command.reason}`,
+        }),
+      );
       return entry;
     },
 

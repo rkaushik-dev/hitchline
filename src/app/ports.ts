@@ -9,6 +9,7 @@ import type { RosterOverride } from '../domain/rotation/override.js';
 import type { Shield } from '../domain/adherence/shield.js';
 import type { DateRange } from '../domain/time/range.js';
 import type { Instant } from '../domain/time/zone.js';
+import type { EventBus } from './events.js';
 
 /**
  * Everything the application layer needs from the outside world. The domain
@@ -74,6 +75,8 @@ export interface PolicyRepository {
 
 /** The whole set, passed around as one so a service takes a single argument. */
 export interface Ports {
+  /** Where services announce what they did. Optional so a test can leave it out. */
+  readonly events?: EventBus;
   readonly clock: Clock;
   readonly ids: IdSource;
   readonly members: MemberRepository;

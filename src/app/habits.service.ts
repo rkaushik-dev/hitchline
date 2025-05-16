@@ -15,6 +15,7 @@ import { habitId, type CrewMemberId, type HabitId } from '../domain/ids.js';
 import { isActiveMember } from '../domain/crew/member.js';
 import { civilDateIn, type Instant } from '../domain/time/zone.js';
 import { parseCivilDate, type CivilDate } from '../domain/time/civil.js';
+import { domainEvent, type EventName } from './events.js';
 import type { Ports } from './ports.js';
 
 export interface CreateHabitCommand {
@@ -51,8 +52,17 @@ export function habitsService(ports: Ports): HabitsService {
     return found;
   }
 
-  async function saved(entry: Habit): Promise<Habit> {
+  async function saved(entry: Habit, name: EventName, detail: string): Promise<Habit> {
     await ports.habits.save(entry);
+    await ports.events?.publish(
+      domainEvent({
+        name,
+        at: ports.clock.now(),
+        memberId: entry.memberId,
+        habitId: entry.id,
+        detail,
+      }),
+    );
     return entry;
   }
 
@@ -83,7 +93,7 @@ export function habitsService(ports: Ports): HabitsService {
         graceDays: command.graceDays ?? 0,
         createdAt: now,
       });
-      return saved(entry);
+      return saved(entry, 'habit.created', entry.name);
     },
 
     get: load,
@@ -94,24 +104,31 @@ export function habitsService(ports: Ports): HabitsService {
     },
 
     async rename(id: HabitId, name: string): Promise<Habit> {
-      return saved(renameHabit(await load(id), name));
+      return saved(renameHabit(await load(id), name), 'habit.changed', `renamed to ${name}`);
     },
 
     async moveTo(id: HabitId, status: HabitStatus): Promise<Habit> {
-      return saved(moveHabitTo(await load(id), status));
+      const moved = moveHabitTo(await load(id), status);
+      const event: EventName = status === 'archived' ? 'habit.archived' : 'habit.changed';
+      return saved(moved, event, `status ${status}`);
     },
 
     async changeCadence(id: HabitId, cadence: string): Promise<Habit> {
-      return saved(recadence(await load(id), parseCadence(cadence)));
+      const changed = recadence(await load(id), parseCadence(cadence));
+      return saved(changed, 'habit.changed', `cadence ${cadence}`);
     },
 
     async changeTarget(id: HabitId, target: string | undefined): Promise<Habit> {
       const parsed = target === undefined ? undefined : parseTarget(target);
-      return saved(retarget(await load(id), parsed));
+      return saved(
+        retarget(await load(id), parsed),
+        'habit.changed',
+        `target ${target ?? 'cleared'}`,
+      );
     },
 
     async changeTags(id: HabitId, tags: readonly string[]): Promise<Habit> {
-      return saved(retag(await load(id), tags));
+      return saved(retag(await load(id), tags), 'habit.changed', `tags ${tags.join(' ')}`);
     },
   };
 }

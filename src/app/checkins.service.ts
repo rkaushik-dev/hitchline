@@ -13,6 +13,7 @@ import { isRunningOn } from '../domain/habit/habit.js';
 import { civilDateIn, parseInstant, type Instant } from '../domain/time/zone.js';
 import { daysBetween } from '../domain/time/civil.js';
 import type { DateRange } from '../domain/time/range.js';
+import { domainEvent } from './events.js';
 import type { Ports } from './ports.js';
 
 export interface RecordCheckInCommand {
@@ -94,6 +95,16 @@ export function checkInsService(ports: Ports): CheckInsService {
         idempotencyKey: command.idempotencyKey,
       });
       await ports.checkIns.add(entry);
+      await ports.events?.publish(
+        domainEvent({
+          name: 'checkin.recorded',
+          at: now,
+          memberId: member.id,
+          habitId: habit.id,
+          checkInId: entry.id,
+          detail: source,
+        }),
+      );
       return { entry, accepted: true };
     },
 
@@ -104,6 +115,15 @@ export function checkInsService(ports: Ports): CheckInsService {
       }
       const voided = voidCheckIn(entry, at === undefined ? ports.clock.now() : parseInstant(at));
       await ports.checkIns.replace(voided);
+      await ports.events?.publish(
+        domainEvent({
+          name: 'checkin.voided',
+          at: ports.clock.now(),
+          memberId: voided.memberId,
+          habitId: voided.habitId,
+          checkInId: voided.id,
+        }),
+      );
       return voided;
     },
 
