@@ -9,8 +9,8 @@ import {
   readConfig,
   type Config,
 } from '../../../src/config/env.js';
-import { closeStore, openStore } from '../../../src/infra/store/open.js';
-import { ValidationError } from '../../../src/domain/errors.js';
+import { closeStore, openStore, openStoreForReading } from '../../../src/infra/store/open.js';
+import { ConflictError, ValidationError } from '../../../src/domain/errors.js';
 import { aMember } from '../../support/fixtures.js';
 
 const directories: string[] = [];
@@ -139,5 +139,33 @@ describe('opening a store', () => {
   it('closes a store with nothing to close', async () => {
     const store = await openStore({ ...readConfig({}), store: 'memory' });
     await expect(closeStore(store)).resolves.toBeUndefined();
+  });
+});
+
+describe('opening a store for reading', () => {
+  it('shares a journal a writer already holds', async () => {
+    const storePath = await temporaryPath();
+    const writer = await openStore({ ...readConfig({}), store: 'file', storePath });
+    await writer.members.save(aMember());
+
+    const reader = await openStoreForReading({ ...readConfig({}), store: 'file', storePath });
+    expect(await reader.members.all()).toHaveLength(1);
+    await closeStore(reader);
+    await closeStore(writer);
+  });
+
+  it('refuses a second writer on the same journal', async () => {
+    const storePath = await temporaryPath();
+    const writer = await openStore({ ...readConfig({}), store: 'file', storePath });
+    await expect(openStore({ ...readConfig({}), store: 'file', storePath })).rejects.toThrow(
+      ConflictError,
+    );
+    await closeStore(writer);
+  });
+
+  it('is the same thing for a memory store', async () => {
+    const store = await openStoreForReading({ ...readConfig({}), store: 'memory' });
+    expect(await store.members.all()).toEqual([]);
+    await closeStore(store);
   });
 });

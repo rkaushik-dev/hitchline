@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileStore, type FileStore } from '../../src/infra/store/file.js';
+import { readLock } from '../../src/infra/store/lock.js';
+import { ConflictError } from '../../src/domain/errors.js';
 import { fixedClock } from '../../src/infra/clock.js';
 import { sequentialIds } from '../../src/infra/id.js';
 import { habitsService } from '../../src/app/habits.service.js';
@@ -186,14 +188,41 @@ describe('a full run through the services', () => {
 });
 
 describe('reload on demand', () => {
-  it('picks up what another writer appended', async () => {
+  it('picks up what a maintenance tool appended', async () => {
     await store.members.save(aMember());
-    const second = await fileStore({ path, clock: fixedClock('2025-01-10T10:00:00Z') });
+    const second = await fileStore({
+      path,
+      clock: fixedClock('2025-01-10T10:00:00Z'),
+      lock: false,
+    });
     await second.members.save(aMember({ id: 'mem_FEDCBA9876543210', displayName: 'Bo Lindqvist' }));
     await second.close();
 
     expect(await store.members.all()).toHaveLength(1);
     await store.reload();
     expect(await store.members.all()).toHaveLength(2);
+  });
+});
+
+describe('the writer lock', () => {
+  it('is held while the store is open', async () => {
+    expect(await readLock(path)).toBeDefined();
+  });
+
+  it('stops a second writer opening the same journal', async () => {
+    await expect(fileStore({ path })).rejects.toThrow(ConflictError);
+  });
+
+  it('is released on close', async () => {
+    await store.close();
+    expect(await readLock(path)).toBeUndefined();
+    store = await fileStore({ path, clock: fixedClock('2025-01-10T09:00:00Z') });
+  });
+
+  it('lets a reader in when it asks not to lock', async () => {
+    const reader = await fileStore({ path, lock: false });
+    expect(await reader.members.all()).toEqual([]);
+    await reader.close();
+    expect(await readLock(path)).toBeDefined();
   });
 });

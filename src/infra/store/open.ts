@@ -12,6 +12,8 @@ export type OpenStore = Ports & Partial<Durable>;
 export interface OpenOptions {
   readonly clock?: Clock;
   readonly ids?: IdSource;
+  /** Pass false for a tool that only reads, so it can share a live journal. */
+  readonly lock?: boolean;
 }
 
 export async function openStore(config: Config, options: OpenOptions = {}): Promise<OpenStore> {
@@ -19,6 +21,18 @@ export async function openStore(config: Config, options: OpenOptions = {}): Prom
     return memoryStore(options);
   }
   return fileStore({ path: config.storePath, ...options });
+}
+
+/**
+ * Opens the store for a tool that only reads. It shares the journal with a
+ * running server rather than refusing to start, which is what a status or an
+ * export command wants.
+ */
+export async function openStoreForReading(
+  config: Config,
+  options: OpenOptions = {},
+): Promise<OpenStore> {
+  return openStore(config, { ...options, lock: false });
 }
 
 export async function closeStore(store: OpenStore): Promise<void> {

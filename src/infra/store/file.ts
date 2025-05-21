@@ -35,6 +35,7 @@ import {
   type Row,
 } from './codec.js';
 import { collect, fold, openJournal, type Journal } from './journal.js';
+import { ownerHere, takeLock } from './lock.js';
 
 /**
  * The store the service actually runs on. State is held in memory for reads
@@ -50,6 +51,12 @@ export interface FileStoreOptions {
   readonly path: string;
   readonly clock?: Clock;
   readonly ids?: IdSource;
+  /**
+   * Take the writer lock while the store is open. A read only tool can pass
+   * false and share the journal with a running server; anything that writes
+   * must not.
+   */
+  readonly lock?: boolean;
 }
 
 const idOf = (row: Row): string => String(row['id']);
@@ -57,8 +64,15 @@ const memberKey = (row: Row): string => String(row['memberId']);
 const membershipKey = (row: Row): string => `${String(row['crewId'])}|${String(row['memberId'])}`;
 
 export async function fileStore(options: FileStoreOptions): Promise<FileStore> {
-  const journal: Journal = await openJournal(options.path);
   const clock = options.clock ?? systemClock();
+  // The lock stamp is wall time, not the injected clock: staleness is about
+  // how long a process has really been gone, and a test clock pinned to
+  // January would make every lock look abandoned.
+  const held =
+    options.lock === false
+      ? undefined
+      : await takeLock(options.path, { owner: ownerHere(new Date().toISOString()) });
+  const journal: Journal = await openJournal(options.path);
 
   const members = new Map<string, CrewMember>();
   const habits = new Map<string, Habit>();
@@ -224,6 +238,9 @@ export async function fileStore(options: FileStoreOptions): Promise<FileStore> {
 
     reload,
     flush: () => journal.flush(),
-    close: () => journal.close(),
+    async close() {
+      await journal.close();
+      await held?.release();
+    },
   };
 }
