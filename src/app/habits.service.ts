@@ -1,5 +1,6 @@
 import { NotFoundError, ValidationError } from '../domain/errors.js';
-import { parseCadence } from '../domain/habit/cadence.js';
+import { formatCadence, parseCadence } from '../domain/habit/cadence.js';
+import { findTemplate, library } from '../domain/habit/template.js';
 import {
   habit,
   moveHabitTo,
@@ -10,7 +11,7 @@ import {
   type Habit,
   type HabitStatus,
 } from '../domain/habit/habit.js';
-import { parseTarget } from '../domain/habit/target.js';
+import { formatTarget, parseTarget } from '../domain/habit/target.js';
 import { habitId, type CrewMemberId, type HabitId } from '../domain/ids.js';
 import { isActiveMember } from '../domain/crew/member.js';
 import { civilDateIn, type Instant } from '../domain/time/zone.js';
@@ -29,8 +30,16 @@ export interface CreateHabitCommand {
   readonly graceDays?: number;
 }
 
+export interface ApplyTemplateCommand {
+  readonly memberId: CrewMemberId;
+  readonly key: string;
+  readonly startsOn?: string;
+  readonly endsOn?: string;
+}
+
 export interface HabitsService {
   create(command: CreateHabitCommand): Promise<Habit>;
+  applyTemplate(command: ApplyTemplateCommand): Promise<Habit>;
   get(id: HabitId): Promise<Habit>;
   listFor(memberId: CrewMemberId): Promise<Habit[]>;
   rename(id: HabitId, name: string): Promise<Habit>;
@@ -94,6 +103,20 @@ export function habitsService(ports: Ports): HabitsService {
         createdAt: now,
       });
       return saved(entry, 'habit.created', entry.name);
+    },
+
+    async applyTemplate(command: ApplyTemplateCommand): Promise<Habit> {
+      const template = findTemplate(library(), command.key);
+      return this.create({
+        memberId: command.memberId,
+        name: template.name,
+        cadence: formatCadence(template.cadence),
+        target: template.target === undefined ? undefined : formatTarget(template.target),
+        startsOn: command.startsOn,
+        endsOn: command.endsOn,
+        tags: template.tags,
+        graceDays: template.graceDays,
+      });
     },
 
     get: load,

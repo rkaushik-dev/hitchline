@@ -5,7 +5,15 @@ import { habitsService } from '../../app/habits.service.js';
 import type { Ports } from '../../app/ports.js';
 import { requireScope, requireSelfOrAdmin } from '../auth.js';
 import { pageBody, paginate, readPageRequest } from '../pagination.js';
-import { createHabitSchema, parseBody, updateHabitSchema } from '../schemas.js';
+import { library } from '../../domain/habit/template.js';
+import { formatCadence } from '../../domain/habit/cadence.js';
+import { formatTarget } from '../../domain/habit/target.js';
+import {
+  applyTemplateSchema,
+  createHabitSchema,
+  parseBody,
+  updateHabitSchema,
+} from '../schemas.js';
 import { habitView } from '../views.js';
 
 /**
@@ -30,6 +38,33 @@ export function registerHabitRoutes(app: FastifyInstance, ports: Ports): void {
       graceDays: body.graceDays,
     });
     return reply.status(201).send(habitView(created));
+  });
+
+  app.post('/habits/from-template', async (request, reply) => {
+    requireScope(request, 'write');
+    const body = parseBody(applyTemplateSchema, request.body);
+    requireSelfOrAdmin(request, crewMemberId(body.memberId));
+    const created = await habits.applyTemplate({
+      memberId: crewMemberId(body.memberId),
+      key: body.key,
+      startsOn: body.startsOn,
+      endsOn: body.endsOn,
+    });
+    return reply.status(201).send(habitView(created));
+  });
+
+  app.get('/templates', (request) => {
+    requireScope(request, 'read');
+    return {
+      templates: library().templates.map((template) => ({
+        key: template.key,
+        name: template.name,
+        cadence: formatCadence(template.cadence),
+        target: template.target === undefined ? null : formatTarget(template.target),
+        tags: template.tags,
+        note: template.note,
+      })),
+    };
   });
 
   app.get('/habits', async (request) => {

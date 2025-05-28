@@ -315,3 +315,49 @@ describe('the api description', () => {
     expect(Object.keys(body.paths)).toContain('/habits');
   });
 });
+
+describe('habit templates', () => {
+  it('lists the standard set', async () => {
+    const response = await call('GET', '/templates', adaToken.token);
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ templates: { key: string }[] }>();
+    expect(body.templates.map((template) => template.key)).toContain('rest-hours');
+  });
+
+  it('gives somebody a habit from one', async () => {
+    const response = await call('POST', '/habits/from-template', adaToken.token, {
+      memberId: ada,
+      key: 'gym-session',
+      startsOn: '2025-01-06',
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json<{ name: string; cadence: string; target: string }>();
+    expect(body.name).toBe('Twenty minutes in the gym');
+    expect(body.cadence).toBe('3/hitch');
+    expect(body.target).toBe('at least 20 minutes');
+  });
+
+  it('carries the grace window a template asks for', async () => {
+    const response = await call('POST', '/habits/from-template', adaToken.token, {
+      memberId: ada,
+      key: 'rest-hours',
+    });
+    expect(response.json<{ graceDays: number }>().graceDays).toBe(1);
+  });
+
+  it('answers 404 for a template it does not have', async () => {
+    const response = await call('POST', '/habits/from-template', adaToken.token, {
+      memberId: ada,
+      key: 'nothing-here',
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('stops somebody applying one for another member', async () => {
+    const response = await call('POST', '/habits/from-template', boToken.token, {
+      memberId: ada,
+      key: 'gym-session',
+    });
+    expect(response.statusCode).toBe(403);
+  });
+});

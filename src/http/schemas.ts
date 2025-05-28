@@ -31,6 +31,13 @@ export const createHabitSchema = z.object({
   graceDays: z.number().int().min(0).max(7).optional(),
 });
 
+export const applyTemplateSchema = z.object({
+  memberId: memberIdSchema,
+  key: z.string().regex(/^[a-z][a-z0-9-]{2,39}$/, 'must be a template key'),
+  startsOn: isoDate.optional(),
+  endsOn: isoDate.optional(),
+});
+
 export const updateHabitSchema = z
   .object({
     name: z.string().min(3).max(100).optional(),
