@@ -76,9 +76,7 @@ const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 /** Only writes are limited: a report that reloads is cheap and a check in is not. */
 export function registerRateLimit(app: FastifyInstance, options: RateLimitOptions): void {
   const limiter = createLimiter(options.capacity, options.refillPerMinute);
-  const keyOf =
-    options.keyOf ??
-    ((authorization, ip) => (authorization === undefined ? `ip:${ip}` : authorization));
+  const keyOf = options.keyOf ?? ((authorization, ip) => authorization ?? `ip:${ip}`);
 
   app.addHook('onRequest', (request, reply, done) => {
     if (!WRITE_METHODS.has(request.method)) {

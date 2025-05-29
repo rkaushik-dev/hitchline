@@ -49,7 +49,7 @@ function checkEntry(value: unknown, index: number): JournalEntry {
   if (typeof candidate.seq !== 'number' || typeof candidate.at !== 'string') {
     throw ValidationError.field('entries', `is missing a header at position ${index}`);
   }
-  if (typeof candidate.row !== 'object' || candidate.row === null) {
+  if (typeof candidate.row !== 'object') {
     throw ValidationError.field('entries', `has no row at position ${index}`);
   }
   return {

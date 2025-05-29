@@ -98,7 +98,7 @@ export function registerHabitRoutes(app: FastifyInstance, ports: Ports): void {
     if (body.name !== undefined) entry = await habits.rename(id, body.name);
     if (body.cadence !== undefined) entry = await habits.changeCadence(id, body.cadence);
     if (body.target !== undefined) {
-      entry = await habits.changeTarget(id, body.target === null ? undefined : body.target);
+      entry = await habits.changeTarget(id, body.target ?? undefined);
     }
     if (body.tags !== undefined) entry = await habits.changeTags(id, body.tags);
     if (body.status !== undefined) entry = await habits.moveTo(id, body.status);

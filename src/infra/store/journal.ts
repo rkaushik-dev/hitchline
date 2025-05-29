@@ -67,7 +67,7 @@ function parseLine(line: string): JournalEntry | undefined {
   if (typeof candidate.seq !== 'number' || typeof candidate.at !== 'string') return undefined;
   if (typeof candidate.kind !== 'string' || !isRecordKind(candidate.kind)) return undefined;
   if (candidate.op !== 'put' && candidate.op !== 'delete') return undefined;
-  if (typeof candidate.row !== 'object' || candidate.row === null) return undefined;
+  if (typeof candidate.row !== 'object') return undefined;
   return {
     seq: candidate.seq,
     at: candidate.at,

@@ -65,7 +65,7 @@ export function registerCheckInRoutes(app: FastifyInstance, ports: Ports): void 
     const existing = await ports.checkIns.byId(id);
     if (existing === undefined) throw new NotFoundError('check in', id);
     requireSelfOrAdmin(request, existing.memberId);
-    const amended = await checkIns.amend(id, body.reading === null ? undefined : body.reading);
+    const amended = await checkIns.amend(id, body.reading ?? undefined);
     return checkInView(amended);
   });
 }
