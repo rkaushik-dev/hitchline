@@ -151,3 +151,29 @@ describe('what is still open', () => {
     expect(after.length).toBeGreaterThan(before.length);
   });
 });
+
+describe('the shape of a report', () => {
+  it('splits the results by the role of the day', async () => {
+    await checkInOn('2025-01-06');
+    const report = await service.report(ada, '2025-01-06..2025-01-19');
+    expect(report.byRole.map((split) => split.role)).toEqual(['onshift']);
+    expect(report.byRole[0]?.owed).toBe(14);
+  });
+
+  it('says it cannot read a trend from one hitch', async () => {
+    const report = await service.report(ada, '2025-01-06..2025-01-19');
+    expect(report.trend).toBe('unknown');
+  });
+
+  it('names the busiest hour once something has been recorded', async () => {
+    await checkInOn('2025-01-06');
+    await checkInOn('2025-01-07');
+    const report = await service.report(ada, '2025-01-06..2025-01-19');
+    expect(report.busiestHour).toBe(10);
+  });
+
+  it('has no busiest hour when nothing has been recorded', async () => {
+    const report = await service.report(ada, '2025-01-06..2025-01-19');
+    expect(report.busiestHour).toBeUndefined();
+  });
+});

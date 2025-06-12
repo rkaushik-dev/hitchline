@@ -35,6 +35,14 @@ export function registerAdherenceRoutes(app: FastifyInstance, ports: Ports): voi
         ...summaryView(entry),
       })),
       byHitch: report.byHitch.map(summaryView),
+      byRole: report.byRole.map((split) => ({
+        role: split.role,
+        owed: split.owed,
+        met: split.met,
+        rate: Math.round(split.rate * 100) / 100,
+      })),
+      trend: report.trend,
+      busiestHour: report.busiestHour ?? null,
       results: report.results.map(resultView),
     };
   });

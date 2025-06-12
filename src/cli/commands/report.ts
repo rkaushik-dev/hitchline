@@ -4,6 +4,7 @@ import { formatCivilDate } from '../../domain/time/civil.js';
 import { formatDateRange } from '../../domain/time/range.js';
 import type { ObligationResult } from '../../domain/adherence/match.js';
 import type { PeriodSummary } from '../../domain/adherence/summary.js';
+import { describeTrend, type RoleSplit } from '../../domain/adherence/analytics.js';
 import { adherenceService } from '../../app/adherence.service.js';
 import { nudgesService } from '../../app/nudges.service.js';
 import {
@@ -30,33 +31,55 @@ export function reportCommands(context: () => Context): Command {
     .description('how a window went')
     .requiredOption('--window <window>', 'window such as 2025-01-06..2025-01-19')
     .option('--by-hitch', 'break it down by turn of the rotation', false)
-    .action(async (memberId: string, options: { window?: string; byHitch?: boolean }) => {
-      const ctx = context();
-      process.exitCode = await runCommand(ctx, async () => {
-        const report = await adherenceService(ctx.ports).report(
-          crewMemberId(memberId),
-          options.window ?? '',
-        );
-        ctx.out(heading(`adherence for ${memberId}`));
-        ctx.out(
-          keyValues([
-            ['window', formatDateRange(report.window)],
-            ['as of', formatCivilDate(report.asOf)],
-            ['owed', String(report.summary.owed)],
-            ['met', String(report.summary.met)],
-            ['partial', String(report.summary.partial)],
-            ['missed', String(report.summary.missed)],
-            ['pending', String(report.summary.pending)],
-            ['shielded', pluralise(report.summary.shieldedDays, 'day')],
-            ['rate', `${bar(report.summary.rate)} ${percent(report.summary.rate)}`],
-          ]),
-        );
-        if (options.byHitch === true) {
-          ctx.out('');
-          ctx.out(renderTable(report.byHitch, summaryColumns()));
-        }
-      });
-    });
+    .option('--shape', 'show the role split, the trend and the busiest hour', false)
+    .action(
+      async (
+        memberId: string,
+        options: { window?: string; byHitch?: boolean; shape?: boolean },
+      ) => {
+        const ctx = context();
+        process.exitCode = await runCommand(ctx, async () => {
+          const report = await adherenceService(ctx.ports).report(
+            crewMemberId(memberId),
+            options.window ?? '',
+          );
+          ctx.out(heading(`adherence for ${memberId}`));
+          ctx.out(
+            keyValues([
+              ['window', formatDateRange(report.window)],
+              ['as of', formatCivilDate(report.asOf)],
+              ['owed', String(report.summary.owed)],
+              ['met', String(report.summary.met)],
+              ['partial', String(report.summary.partial)],
+              ['missed', String(report.summary.missed)],
+              ['pending', String(report.summary.pending)],
+              ['shielded', pluralise(report.summary.shieldedDays, 'day')],
+              ['rate', `${bar(report.summary.rate)} ${percent(report.summary.rate)}`],
+            ]),
+          );
+          if (options.byHitch === true) {
+            ctx.out('');
+            ctx.out(renderTable(report.byHitch, summaryColumns()));
+          }
+          if (options.shape === true) {
+            ctx.out('');
+            ctx.out(renderTable(report.byRole, roleColumns()));
+            ctx.out('');
+            ctx.out(
+              keyValues([
+                ['trend', describeTrend(report.trend)],
+                [
+                  'busiest hour',
+                  report.busiestHour === undefined
+                    ? 'nothing recorded'
+                    : `${String(report.busiestHour).padStart(2, '0')}:00`,
+                ],
+              ]),
+            );
+          }
+        });
+      },
+    );
 
   command
     .command('open <memberId>')
@@ -123,6 +146,15 @@ export function reportCommands(context: () => Context): Command {
     });
 
   return command;
+}
+
+function roleColumns(): Column<RoleSplit>[] {
+  return [
+    { header: 'role', get: (row) => row.role },
+    { header: 'owed', get: (row) => String(row.owed), align: 'right' },
+    { header: 'met', get: (row) => String(row.met), align: 'right' },
+    { header: 'rate', get: (row) => percent(row.rate), align: 'right' },
+  ];
 }
 
 function summaryColumns(): Column<PeriodSummary>[] {

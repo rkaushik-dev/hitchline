@@ -2,6 +2,14 @@ import type { CrewMemberId, HabitId } from '../domain/ids.js';
 import type { ObligationResult } from '../domain/adherence/match.js';
 import { computeStreak, type StreakSummary } from '../domain/adherence/streak.js';
 import {
+  busiestHour,
+  byRole,
+  trendOf,
+  type RoleSplit,
+  type Trend,
+} from '../domain/adherence/analytics.js';
+import { roleFor } from '../domain/rotation/roster.js';
+import {
   summarise,
   summariseByHabit,
   summariseByHitch,
@@ -20,6 +28,10 @@ export interface AdherenceReport {
   readonly summary: PeriodSummary;
   readonly byHabit: readonly HabitSummary[];
   readonly byHitch: readonly PeriodSummary[];
+  /** How the same person does on shift against at home. */
+  readonly byRole: readonly RoleSplit[];
+  readonly trend: Trend;
+  readonly busiestHour: number | undefined;
 }
 
 export interface AdherenceService {
@@ -46,13 +58,17 @@ export function adherenceService(ports: Ports): AdherenceService {
         shields: loaded.shields,
         range,
       };
+      const byHitch = summariseByHitch(request);
       return {
         window: range,
         asOf: loaded.asOf,
         results,
         summary: summarise(request),
         byHabit: summariseByHabit(request),
-        byHitch: summariseByHitch(request),
+        byHitch,
+        byRole: byRole(results, (result) => roleFor(loaded.roster, result.obligation.dueOn)),
+        trend: trendOf(byHitch),
+        busiestHour: busiestHour(loaded.resolved)?.hour,
       };
     },
 

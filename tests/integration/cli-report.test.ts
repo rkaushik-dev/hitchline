@@ -130,3 +130,35 @@ describe('the nudge plan', () => {
     expect(context.text().split('\n')[0]).toContain('day');
   });
 });
+
+describe('the shape of a window', () => {
+  it('prints the role split when asked', async () => {
+    await run('report', 'adherence', ada, '--window', '2025-01-06..2025-01-19', '--shape');
+    const text = context.text();
+    expect(text).toContain('role');
+    expect(text).toContain('onshift');
+  });
+
+  it('says what the trend is', async () => {
+    await run('report', 'adherence', ada, '--window', '2025-01-06..2025-01-19', '--shape');
+    expect(context.text()).toContain('not enough hitches to say');
+  });
+
+  it('names the busiest hour', async () => {
+    await run('report', 'adherence', ada, '--window', '2025-01-06..2025-01-19', '--shape');
+    expect(context.text()).toContain('busiest hour  10:00');
+  });
+
+  it('says so when nothing has been recorded', async () => {
+    const empty = memoryStore({ clock: fixedClock('2025-01-20T09:00:00Z'), ids: sequentialIds() });
+    await empty.members.save(aMember());
+    context = recordingContext(empty, config);
+    await run('report', 'adherence', ada, '--window', '2025-01-06..2025-01-19', '--shape');
+    expect(context.text()).toContain('nothing recorded');
+  });
+
+  it('leaves the shape out unless it is asked for', async () => {
+    await run('report', 'adherence', ada, '--window', '2025-01-06..2025-01-19');
+    expect(context.text()).not.toContain('busiest hour');
+  });
+});
