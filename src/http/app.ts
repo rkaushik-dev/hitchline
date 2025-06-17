@@ -4,6 +4,7 @@ import type { Ports } from '../app/ports.js';
 import { registerAuth } from './auth.js';
 import { openApiDocument } from './manifest.js';
 import { createMetrics, LATENCY_BOUNDS, type Metrics } from './metrics.js';
+import { registerHardening } from './middleware/hardening.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
 import { registerRequestContext } from './middleware/request-context.js';
 import { registerRoutes } from './routes/index.js';
@@ -19,6 +20,8 @@ export interface AppOptions {
   readonly ports: Ports;
   /** Writes per minute allowed to one caller. */
   readonly writesPerMinute?: number;
+  /** Origins a browser may call the api from. */
+  readonly allowedOrigins?: readonly string[];
   readonly burst?: number;
 }
 
@@ -42,6 +45,7 @@ export function buildAppWithMetrics(options: AppOptions): BuiltApp {
     LATENCY_BOUNDS,
   );
 
+  registerHardening(app, { allowedOrigins: options.allowedOrigins ?? [] });
   registerRequestContext(app, {
     nextId: () => options.ports.ids.next('CheckInId').replace('chk_', 'req-'),
   });
