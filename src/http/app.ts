@@ -3,6 +3,7 @@ import type { Config } from '../config/env.js';
 import type { Ports } from '../app/ports.js';
 import { registerAuth } from './auth.js';
 import { openApiDocument } from './manifest.js';
+import { readiness, statusFor } from './readiness.js';
 import { createMetrics, LATENCY_BOUNDS, type Metrics } from './metrics.js';
 import { registerHardening } from './middleware/hardening.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
@@ -68,6 +69,11 @@ export function buildAppWithMetrics(options: AppOptions): BuiltApp {
   );
 
   app.get('/openapi.json', () => openApiDocument({ version: API_VERSION }));
+
+  app.get('/ready', async (_request, reply) => {
+    const report = await readiness({ ports: options.ports, config: options.config });
+    return reply.status(statusFor(report)).send(report);
+  });
 
   registerRoutes(app, options.ports);
   return { app, metrics };

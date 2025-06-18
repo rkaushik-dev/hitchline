@@ -361,3 +361,13 @@ describe('habit templates', () => {
     expect(response.statusCode).toBe(403);
   });
 });
+
+describe('readiness', () => {
+  it('is served without a token and says what it checked', async () => {
+    const response = await app.inject({ method: 'GET', url: '/ready' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ state: string; checks: { name: string }[] }>();
+    expect(body.state).toBe('pass');
+    expect(body.checks.map((check) => check.name)).toContain('store');
+  });
+});
