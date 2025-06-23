@@ -1,4 +1,4 @@
-import { readConfig } from './config/env.js';
+import { loadConfig } from './config/file.js';
 import { closeStore, openStore } from './infra/store/open.js';
 import { createShutdown, onSignals } from './infra/shutdown.js';
 import { buildApp } from './http/app.js';
@@ -8,9 +8,10 @@ import { buildApp } from './http/app.js';
  * configuration names, serves the api and closes both on a signal.
  */
 export async function main(): Promise<void> {
-  const config = readConfig();
+  const loaded = await loadConfig(process.env['HITCHLINE_CONFIG']);
+  const { config } = loaded;
   const store = await openStore(config);
-  const app = buildApp({ config, ports: store });
+  const app = buildApp({ config, ports: store, allowedOrigins: loaded.allowedOrigins });
   const shutdown = createShutdown();
 
   shutdown.add('http', () => app.close());
@@ -24,5 +25,8 @@ export async function main(): Promise<void> {
   });
 
   await app.listen({ host: config.host, port: config.port });
-  app.log.info({ store: config.store, path: config.storePath }, 'hitchline is up');
+  app.log.info(
+    { store: config.store, path: config.storePath, config: loaded.from },
+    'hitchline is up',
+  );
 }
