@@ -1,10 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { ValidationError } from '../../domain/errors.js';
-import { crewMemberId } from '../../domain/ids.js';
 import { formatClockRange } from '../../domain/time/clocktime.js';
 import { nudgesService } from '../../app/nudges.service.js';
 import type { Ports } from '../../app/ports.js';
 import { requireScope, requireSelfOrAdmin } from '../auth.js';
+import { memberOf, windowStringOf } from '../query.js';
 import { parseBody, policySchema } from '../schemas.js';
 import { nudgeView } from '../views.js';
 
@@ -16,20 +15,14 @@ export function registerNudgeRoutes(app: FastifyInstance, ports: Ports): void {
   const nudges = nudgesService(ports);
 
   app.get('/members/:memberId/nudges', async (request) => {
-    const params = request.params as { memberId: string };
-    const query = request.query as { window?: string };
-    const memberId = crewMemberId(params.memberId);
+    const memberId = memberOf(request);
     requireSelfOrAdmin(request, memberId);
-    if (query.window === undefined) {
-      throw ValidationError.field('window', 'is needed to plan nudges');
-    }
-    const planned = await nudges.plan(memberId, query.window);
+    const planned = await nudges.plan(memberId, windowStringOf(request, 'plan nudges'));
     return { nudges: planned.map(nudgeView) };
   });
 
   app.get('/members/:memberId/nudge-policy', async (request) => {
-    const params = request.params as { memberId: string };
-    const memberId = crewMemberId(params.memberId);
+    const memberId = memberOf(request);
     requireSelfOrAdmin(request, memberId);
     const policy = await nudges.policyFor(memberId);
     return {
@@ -43,8 +36,7 @@ export function registerNudgeRoutes(app: FastifyInstance, ports: Ports): void {
   });
 
   app.put('/members/:memberId/nudge-policy', async (request) => {
-    const params = request.params as { memberId: string };
-    const memberId = crewMemberId(params.memberId);
+    const memberId = memberOf(request);
     requireSelfOrAdmin(request, memberId);
     requireScope(request, 'write');
     const body = parseBody(policySchema, request.body);
