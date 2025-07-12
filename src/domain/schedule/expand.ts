@@ -4,7 +4,8 @@ import { isRunningOn, type Habit } from '../habit/habit.js';
 import { asOf, type HabitHistory } from '../habit/revision.js';
 import { hitchNumberOn, hitchRange } from '../rotation/assignment.js';
 import { cycleLength, type DayRole } from '../rotation/pattern.js';
-import { effectiveBlocks, roleFor, type Roster } from '../rotation/roster.js';
+import { effectiveBlocks, type Roster } from '../rotation/roster.js';
+import { buildCalendar, roleThrough } from '../rotation/calendar.js';
 import {
   obligation,
   obligationKey,
@@ -49,9 +50,12 @@ function emit(
 
 function expandPerDay(request: Expansion, times: number, roles?: readonly DayRole[]): Obligation[] {
   const entries: Obligation[] = [];
+  const calendar = roles === undefined ? undefined : buildCalendar(request.roster, request.window);
   for (const date of daysOf(request.window)) {
     if (!isRunningOn(request.habit, date)) continue;
-    if (roles !== undefined && !roles.includes(roleFor(request.roster, date))) continue;
+    if (roles !== undefined && calendar !== undefined) {
+      if (!roles.includes(roleThrough(calendar, request.roster, date))) continue;
+    }
     entries.push(emit(request, 'day', dateRange(date, date), times));
   }
   return entries;
