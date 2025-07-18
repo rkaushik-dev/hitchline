@@ -15,10 +15,11 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage tests/unit tests/integration tests/invariants",
     "start": "node dist/bin/serve.js",
     "dev": "tsx watch src/bin/serve.ts",
-    "cli": "tsx src/bin/hitchline.ts"
+    "cli": "tsx src/bin/hitchline.ts",
+    "test:perf": "vitest run tests/performance"
   },
   "devDependencies": {
     "@eslint/js": "9.19.0",

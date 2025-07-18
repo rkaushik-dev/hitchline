@@ -60,3 +60,6 @@ jobs:
 
       - name: tests with coverage
         run: npm run test:coverage
+
+      - name: timings
+        run: npm run test:perf
