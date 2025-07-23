@@ -9,6 +9,7 @@ import { storeCommands } from './commands/store.js';
 import { crewCommands, demoCommands } from './commands/crew.js';
 import { exportCommands } from './commands/export.js';
 import { doctorCommands } from './commands/doctor.js';
+import { docsCommands } from './commands/docs.js';
 
 /**
  * The operator command line. It opens the same store the server does, which is
@@ -30,6 +31,7 @@ export function buildProgram(context: () => Context): Command {
   program.addCommand(demoCommands(context));
   program.addCommand(exportCommands(context));
   program.addCommand(doctorCommands(context));
+  program.addCommand(docsCommands(context));
   return program;
 }
 
