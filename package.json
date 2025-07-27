@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run tests/unit tests/integration tests/invariants",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -19,7 +19,8 @@
     "start": "node dist/bin/serve.js",
     "dev": "tsx watch src/bin/serve.ts",
     "cli": "tsx src/bin/hitchline.ts",
-    "test:perf": "vitest run tests/performance"
+    "test:perf": "vitest run tests/performance",
+    "test:all": "vitest run"
   },
   "devDependencies": {
     "@eslint/js": "9.19.0",
@@ -39,5 +40,17 @@
   },
   "bin": {
     "hitchline": "dist/bin/hitchline.js"
-  }
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
 }
