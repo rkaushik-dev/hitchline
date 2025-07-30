@@ -20,7 +20,8 @@
     "dev": "tsx watch src/bin/serve.ts",
     "cli": "tsx src/bin/hitchline.ts",
     "test:perf": "vitest run tests/performance",
-    "test:all": "vitest run"
+    "test:all": "vitest run",
+    "docs": "tsx src/bin/hitchline.ts docs api --out docs/api.md"
   },
   "devDependencies": {
     "@eslint/js": "9.19.0",
