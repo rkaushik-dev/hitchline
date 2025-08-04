@@ -104,6 +104,10 @@ export async function readJournal(path: string): Promise<ReadReport> {
 
 export interface Journal {
   append(kind: RecordKind, op: Operation, row: Row, at: string): Promise<JournalEntry>;
+  /** Appends several at once, which costs one write rather than one each. */
+  appendMany(
+    rows: readonly { kind: RecordKind; op: Operation; row: Row; at: string }[],
+  ): Promise<JournalEntry[]>;
   read(): Promise<ReadReport>;
   /** Rewrites the file from a fresh set of entries, used by compaction. */
   rewrite(entries: readonly JournalEntry[]): Promise<void>;
@@ -128,15 +132,70 @@ export async function openJournal(path: string): Promise<Journal> {
     return handle;
   }
 
+  /**
+   * Appends made in one tick are written as one call. A bulk import used to
+   * make one write syscall per row, which on a windows filesystem was most of
+   * the time the import took. Callers still wait for their own line to be
+   * written, so nothing is acknowledged before it is on the handle.
+   */
+  let queued: string[] = [];
+  let flushing: Promise<void> | undefined;
+
+  function scheduleFlush(): Promise<void> {
+    if (flushing !== undefined) return flushing;
+    flushing = new Promise<void>((resolve, reject) => {
+      queueMicrotask(() => {
+        const body = queued.join('');
+        queued = [];
+        flushing = undefined;
+        if (body.length === 0) {
+          resolve();
+          return;
+        }
+        writer()
+          .then((file) => file.write(body, null, 'utf8'))
+          .then(() => {
+            resolve();
+          })
+          .catch((error: unknown) => {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          });
+      });
+    });
+    return flushing;
+  }
+
   return {
     path,
 
     async append(kind: RecordKind, op: Operation, row: Row, at: string): Promise<JournalEntry> {
       seq += 1;
       const entry: JournalEntry = { seq, at, kind, op, row };
-      const file = await writer();
-      await file.write(`${JSON.stringify(entry)}\n`, null, 'utf8');
+      queued.push(`${JSON.stringify(entry)}
+`);
+      await scheduleFlush();
       return entry;
+    },
+
+    async appendMany(
+      rows: readonly { kind: RecordKind; op: Operation; row: Row; at: string }[],
+    ): Promise<JournalEntry[]> {
+      const entries: JournalEntry[] = [];
+      for (const item of rows) {
+        seq += 1;
+        const entry: JournalEntry = {
+          seq,
+          at: item.at,
+          kind: item.kind,
+          op: item.op,
+          row: item.row,
+        };
+        entries.push(entry);
+        queued.push(`${JSON.stringify(entry)}
+`);
+      }
+      await scheduleFlush();
+      return entries;
     },
 
     read: () => readJournal(path),

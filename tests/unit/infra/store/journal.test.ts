@@ -159,3 +159,48 @@ describe('folding', () => {
     expect(collect(entries, 'habit')).toHaveLength(1);
   });
 });
+
+describe('writing several at once', () => {
+  it('numbers them in order and writes one line each', async () => {
+    const written = await journal.appendMany([
+      { kind: 'member', op: 'put', row: { id: 'mem_1' }, at },
+      { kind: 'habit', op: 'put', row: { id: 'hab_1' }, at },
+    ]);
+    expect(written.map((entry) => entry.seq)).toEqual([1, 2]);
+    const text = await readFile(path, 'utf8');
+    expect(text.trim().split('\n')).toHaveLength(2);
+  });
+
+  it('carries on numbering after a single append', async () => {
+    await journal.append('member', 'put', { id: 'mem_1' }, at);
+    const written = await journal.appendMany([
+      { kind: 'habit', op: 'put', row: { id: 'hab_1' }, at },
+    ]);
+    expect(written[0]?.seq).toBe(2);
+  });
+
+  it('writes nothing for an empty list', async () => {
+    expect(await journal.appendMany([])).toEqual([]);
+    expect((await journal.read()).entries).toEqual([]);
+  });
+
+  it('reads back everything a burst of appends wrote', async () => {
+    await Promise.all([
+      journal.append('member', 'put', { id: 'mem_1' }, at),
+      journal.append('member', 'put', { id: 'mem_2' }, at),
+      journal.append('member', 'put', { id: 'mem_3' }, at),
+    ]);
+    const report = await journal.read();
+    expect(report.entries).toHaveLength(3);
+    expect(report.entries.map((entry) => entry.seq)).toEqual([1, 2, 3]);
+  });
+
+  it('keeps the order a burst was made in', async () => {
+    await Promise.all([
+      journal.append('member', 'put', { id: 'mem_1' }, at),
+      journal.append('habit', 'put', { id: 'hab_1' }, at),
+    ]);
+    const report = await journal.read();
+    expect(report.entries.map((entry) => entry.kind)).toEqual(['member', 'habit']);
+  });
+});
