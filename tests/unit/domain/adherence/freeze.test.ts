@@ -6,36 +6,15 @@ import {
   freezeBudget,
   lastMetLabel,
 } from '../../../../src/domain/adherence/freeze.js';
-import type { AdherenceStatus, ObligationResult } from '../../../../src/domain/adherence/match.js';
 import { shield } from '../../../../src/domain/adherence/shield.js';
-import { obligation } from '../../../../src/domain/schedule/obligation.js';
-import { crewMemberId, habitId } from '../../../../src/domain/ids.js';
-import { addDays, formatCivilDate, parseCivilDate } from '../../../../src/domain/time/civil.js';
+import { ADA, aRun } from '../../../support/builders.js';
+import type { AdherenceStatus } from '../../../../src/domain/adherence/match.js';
+import { formatCivilDate } from '../../../../src/domain/time/civil.js';
 import { parseDateRange } from '../../../../src/domain/time/range.js';
 import { parseInstant } from '../../../../src/domain/time/zone.js';
 import { ValidationError } from '../../../../src/domain/errors.js';
 
-const ada = crewMemberId('mem_0123456789ABCDEF');
-const treadmill = habitId('hab_0123456789ABCDEF');
-const start = parseCivilDate('2025-06-02');
-
-function run(statuses: readonly AdherenceStatus[]): ObligationResult[] {
-  return statuses.map((status, index) => ({
-    obligation: obligation({
-      habitId: treadmill,
-      memberId: ada,
-      scope: 'day',
-      window: parseDateRange(
-        `${formatCivilDate(addDays(start, index))}..${formatCivilDate(addDays(start, index))}`,
-      ),
-      times: 1,
-    }),
-    count: status === 'met' ? 1 : 0,
-    total: undefined,
-    status,
-    progress: status === 'met' ? 1 : 0,
-  }));
-}
+const ada = ADA;
 
 describe('the budget', () => {
   it('allows one miss a month by default', () => {
@@ -53,7 +32,7 @@ describe('the budget', () => {
 describe('carrying a run over a miss', () => {
   it('absorbs one miss and keeps counting', () => {
     const summary = computeFrozenStreak({
-      results: run(['met', 'met', 'missed', 'met']),
+      results: aRun('2025-06-02', ['met', 'met', 'missed', 'met']),
       shields: [],
       memberId: ada,
     });
@@ -64,7 +43,7 @@ describe('carrying a run over a miss', () => {
 
   it('breaks on the second miss inside the window', () => {
     const summary = computeFrozenStreak({
-      results: run(['met', 'missed', 'met', 'missed', 'met']),
+      results: aRun('2025-06-02', ['met', 'missed', 'met', 'missed', 'met']),
       shields: [],
       memberId: ada,
     });
@@ -77,14 +56,18 @@ describe('carrying a run over a miss', () => {
     const statuses: AdherenceStatus[] = ['met', 'missed'];
     for (let day = 0; day < 30; day += 1) statuses.push('met');
     statuses.push('missed', 'met');
-    const summary = computeFrozenStreak({ results: run(statuses), shields: [], memberId: ada });
+    const summary = computeFrozenStreak({
+      results: aRun('2025-06-02', statuses),
+      shields: [],
+      memberId: ada,
+    });
     expect(summary.frozen).toBe(2);
     expect(summary.current).toBeGreaterThan(30);
   });
 
   it('will not freeze the first thing in a run', () => {
     const summary = computeFrozenStreak({
-      results: run(['missed', 'met', 'met']),
+      results: aRun('2025-06-02', ['missed', 'met', 'met']),
       shields: [],
       memberId: ada,
     });
@@ -94,7 +77,7 @@ describe('carrying a run over a miss', () => {
 
   it('takes a wider allowance', () => {
     const summary = computeFrozenStreak({
-      results: run(['met', 'missed', 'missed', 'met']),
+      results: aRun('2025-06-02', ['met', 'missed', 'missed', 'met']),
       shields: [],
       memberId: ada,
       budget: freezeBudget({ allowance: 2 }),
@@ -105,7 +88,7 @@ describe('carrying a run over a miss', () => {
 
   it('breaks every time with no allowance at all', () => {
     const summary = computeFrozenStreak({
-      results: run(['met', 'missed', 'met']),
+      results: aRun('2025-06-02', ['met', 'missed', 'met']),
       shields: [],
       memberId: ada,
       budget: freezeBudget({ allowance: 0 }),
@@ -124,7 +107,7 @@ describe('shields and freezes together', () => {
       grantedAt: parseInstant('2025-06-01T09:00:00Z'),
     });
     const summary = computeFrozenStreak({
-      results: run(['met', 'met', 'missed', 'met']),
+      results: aRun('2025-06-02', ['met', 'met', 'missed', 'met']),
       shields: [leave],
       memberId: ada,
     });
@@ -137,10 +120,14 @@ describe('shields and freezes together', () => {
 
 describe('reading it back', () => {
   it('says what is in hand', () => {
-    const clean = computeFrozenStreak({ results: run(['met']), shields: [], memberId: ada });
+    const clean = computeFrozenStreak({
+      results: aRun('2025-06-02', ['met']),
+      shields: [],
+      memberId: ada,
+    });
     expect(describeFreezes(clean)).toBe('1 freezes in hand');
     const used = computeFrozenStreak({
-      results: run(['met', 'missed', 'met']),
+      results: aRun('2025-06-02', ['met', 'missed', 'met']),
       shields: [],
       memberId: ada,
     });
@@ -148,7 +135,11 @@ describe('reading it back', () => {
   });
 
   it('labels the last day something was met', () => {
-    const summary = computeFrozenStreak({ results: run(['met']), shields: [], memberId: ada });
+    const summary = computeFrozenStreak({
+      results: aRun('2025-06-02', ['met']),
+      shields: [],
+      memberId: ada,
+    });
     expect(lastMetLabel(summary)).toBe('2025-06-02');
     expect(lastMetLabel({ ...summary, lastMetOn: undefined })).toBe('never');
   });

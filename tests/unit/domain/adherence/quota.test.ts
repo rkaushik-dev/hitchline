@@ -7,30 +7,8 @@ import {
   quota,
   readQuota,
 } from '../../../../src/domain/adherence/quota.js';
-import type { AdherenceStatus, ObligationResult } from '../../../../src/domain/adherence/match.js';
-import { obligation } from '../../../../src/domain/schedule/obligation.js';
-import { crewMemberId, habitId } from '../../../../src/domain/ids.js';
-import { parseDateRange } from '../../../../src/domain/time/range.js';
+import { aResult as result } from '../../../support/builders.js';
 import { ValidationError } from '../../../../src/domain/errors.js';
-
-const ada = crewMemberId('mem_0123456789ABCDEF');
-const treadmill = habitId('hab_0123456789ABCDEF');
-
-function result(day: string, status: AdherenceStatus): ObligationResult {
-  return {
-    obligation: obligation({
-      habitId: treadmill,
-      memberId: ada,
-      scope: 'day',
-      window: parseDateRange(`${day}..${day}`),
-      times: 1,
-    }),
-    count: status === 'met' ? 1 : 0,
-    total: undefined,
-    status,
-    progress: status === 'met' ? 1 : 0,
-  };
-}
 
 const twoInSeven = quota('weekly slip', 2, 7);
 

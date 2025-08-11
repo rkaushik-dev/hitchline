@@ -7,32 +7,15 @@ import {
   isAtRisk,
   streakBroken,
 } from '../../../../src/domain/adherence/streak.js';
-import type { AdherenceStatus, ObligationResult } from '../../../../src/domain/adherence/match.js';
 import { shield } from '../../../../src/domain/adherence/shield.js';
-import { obligation } from '../../../../src/domain/schedule/obligation.js';
-import { crewMemberId, habitId } from '../../../../src/domain/ids.js';
+import { crewMemberId } from '../../../../src/domain/ids.js';
+import { ADA, aResult as result } from '../../../support/builders.js';
 import { formatCivilDate } from '../../../../src/domain/time/civil.js';
 import { parseDateRange } from '../../../../src/domain/time/range.js';
 import { parseInstant } from '../../../../src/domain/time/zone.js';
 
 const r = parseDateRange;
-const ada = crewMemberId('mem_0123456789ABCDEF');
-
-function result(day: string, status: AdherenceStatus): ObligationResult {
-  return {
-    obligation: obligation({
-      habitId: habitId('hab_0123456789ABCDEF'),
-      memberId: ada,
-      scope: 'day',
-      window: r(`${day}..${day}`),
-      times: 1,
-    }),
-    count: status === 'met' ? 1 : 0,
-    total: undefined,
-    status,
-    progress: status === 'met' ? 1 : 0,
-  };
-}
+const ada = ADA;
 
 const leave = shield({
   memberId: ada,
