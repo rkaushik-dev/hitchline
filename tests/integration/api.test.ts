@@ -371,3 +371,52 @@ describe('readiness', () => {
     expect(body.checks.map((check) => check.name)).toContain('store');
   });
 });
+
+describe('a handset syncing what it queued', () => {
+  async function habitFor(member: string, token: string): Promise<string> {
+    const created = await call('POST', '/habits', token, {
+      memberId: member,
+      name: 'Twenty minutes on the treadmill',
+      cadence: '1/day',
+      startsOn: '2025-01-06',
+    });
+    return created.json<{ id: string }>().id;
+  }
+
+  it('answers per item', async () => {
+    const habitId = await habitFor(ada, adaToken.token);
+    const response = await call('POST', `/members/${ada}/sync`, adaToken.token, {
+      items: [
+        { localId: 'local-1', habitId, at: '2025-01-18T07:00:00Z' },
+        { localId: 'local-2', habitId, at: '2025-01-19T07:00:00Z', reading: 22 },
+      ],
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ accepted: number; results: { outcome: string }[] }>();
+    expect(body.accepted).toBe(2);
+    expect(body.results.every((result) => result.outcome === 'accepted')).toBe(true);
+  });
+
+  it('does not double count the same batch', async () => {
+    const habitId = await habitFor(ada, adaToken.token);
+    const payload = { items: [{ localId: 'local-1', habitId, at: '2025-01-18T07:00:00Z' }] };
+    await call('POST', `/members/${ada}/sync`, adaToken.token, payload);
+    const second = await call('POST', `/members/${ada}/sync`, adaToken.token, payload);
+    expect(second.json<{ duplicates: number }>().duplicates).toBe(1);
+  });
+
+  it('refuses a body it cannot read', async () => {
+    const response = await call('POST', `/members/${ada}/sync`, adaToken.token, {
+      items: [{ localId: 'local-1', habitId: 'nope', at: 'yesterday' }],
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('stops a handset syncing for somebody else', async () => {
+    const habitId = await habitFor(ada, adaToken.token);
+    const response = await call('POST', `/members/${ada}/sync`, boToken.token, {
+      items: [{ localId: 'local-1', habitId, at: '2025-01-18T07:00:00Z' }],
+    });
+    expect(response.statusCode).toBe(403);
+  });
+});

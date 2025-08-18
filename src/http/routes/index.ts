@@ -7,6 +7,7 @@ import { registerCrewRoutes } from './crews.js';
 import { registerHabitRoutes } from './habits.js';
 import { registerNudgeRoutes } from './nudges.js';
 import { registerRosterRoutes } from './roster.js';
+import { registerSyncRoutes } from './sync.js';
 
 /**
  * Every route the api serves, in one call. Order does not matter to fastify,
@@ -20,6 +21,7 @@ export function registerRoutes(app: FastifyInstance, ports: Ports): void {
   registerNudgeRoutes(app, ports);
   registerCrewRoutes(app, ports);
   registerCompareRoutes(app, ports);
+  registerSyncRoutes(app, ports);
 }
 
 export { registerAdherenceRoutes } from './adherence.js';
@@ -29,3 +31,4 @@ export { registerCrewRoutes } from './crews.js';
 export { registerHabitRoutes } from './habits.js';
 export { registerNudgeRoutes } from './nudges.js';
 export { registerRosterRoutes } from './roster.js';
+export { registerSyncRoutes } from './sync.js';

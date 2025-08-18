@@ -57,6 +57,21 @@ export const recordCheckInSchema = z.object({
   idempotencyKey: z.string().min(8).max(64).optional(),
 });
 
+export const syncSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        localId: z.string().min(1).max(64),
+        habitId: habitIdSchema,
+        at: z.string().datetime({ offset: true }),
+        reading: z.number().min(0).max(100_000).optional(),
+        note: z.string().max(500).optional(),
+        idempotencyKey: z.string().min(8).max(64).optional(),
+      }),
+    )
+    .max(500),
+});
+
 export const amendCheckInSchema = z.object({
   reading: z.number().min(0).max(100_000).nullable(),
 });

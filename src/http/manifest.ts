@@ -132,6 +132,13 @@ export const ROUTES: readonly RouteDoc[] = [
     scope: 'read',
     parameters: [MEMBER, WINDOW],
   },
+  {
+    method: 'POST',
+    path: '/members/:memberId/sync',
+    summary: 'take a batch a handset queued while it had no signal',
+    scope: 'write',
+    parameters: [MEMBER],
+  },
   { method: 'POST', path: '/crews', summary: 'start a crew', scope: 'admin', parameters: [] },
   {
     method: 'GET',

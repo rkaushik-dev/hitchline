@@ -111,6 +111,16 @@ needs a token with the read scope
 | memberId | path | yes | the crew member the record belongs to |
 | window | query | yes | inclusive day range written as YYYY-MM-DD..YYYY-MM-DD |
 
+### POST /members/:memberId/sync
+
+take a batch a handset queued while it had no signal
+
+needs the write scope
+
+| parameter | in | required | what it is |
+| --- | --- | --- | --- |
+| memberId | path | yes | the crew member the record belongs to |
+
 ### POST /crews
 
 start a crew
