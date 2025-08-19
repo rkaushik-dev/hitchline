@@ -33,9 +33,6 @@ export interface BuiltApp {
 
 export const API_VERSION = '0.1.0';
 
-const DEFAULT_BURST = 30;
-const DEFAULT_WRITES_PER_MINUTE = 120;
-
 export function buildAppWithMetrics(options: AppOptions): BuiltApp {
   const app = buildServer(options);
   const metrics = createMetrics();
@@ -52,8 +49,8 @@ export function buildAppWithMetrics(options: AppOptions): BuiltApp {
   });
   registerRateLimit(app, {
     clock: options.ports.clock,
-    capacity: options.burst ?? DEFAULT_BURST,
-    refillPerMinute: options.writesPerMinute ?? DEFAULT_WRITES_PER_MINUTE,
+    capacity: options.burst ?? options.config.burst,
+    refillPerMinute: options.writesPerMinute ?? options.config.writesPerMinute,
   });
   registerAuth(app, { tokens: options.config.tokens });
 

@@ -169,3 +169,22 @@ describe('opening a store for reading', () => {
     await closeStore(store);
   });
 });
+
+describe('the write limit', () => {
+  it('has a default a crew will not notice', () => {
+    const config = readConfig({});
+    expect(config.writesPerMinute).toBe(120);
+    expect(config.burst).toBe(30);
+  });
+
+  it('takes both from the environment', () => {
+    const config = readConfig({ HITCHLINE_WRITES_PER_MINUTE: '600', HITCHLINE_BURST: '90' });
+    expect(config.writesPerMinute).toBe(600);
+    expect(config.burst).toBe(90);
+  });
+
+  it('refuses a value that is not a count', () => {
+    expect(() => readConfig({ HITCHLINE_BURST: 'lots' })).toThrow(/whole number from 1 to 100000/);
+    expect(() => readConfig({ HITCHLINE_BURST: '0' })).toThrow(ValidationError);
+  });
+});

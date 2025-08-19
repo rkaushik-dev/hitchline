@@ -16,6 +16,8 @@ export interface ConfigFile {
   readonly logLevel?: string;
   readonly defaultZone?: string;
   readonly allowedOrigins?: readonly string[];
+  readonly writesPerMinute?: number;
+  readonly burst?: number;
 }
 
 const KEYS: readonly (keyof ConfigFile)[] = [
@@ -26,6 +28,8 @@ const KEYS: readonly (keyof ConfigFile)[] = [
   'logLevel',
   'defaultZone',
   'allowedOrigins',
+  'writesPerMinute',
+  'burst',
 ];
 
 const TO_ENV: Readonly<Record<string, string>> = {
@@ -35,6 +39,8 @@ const TO_ENV: Readonly<Record<string, string>> = {
   port: 'HITCHLINE_PORT',
   logLevel: 'HITCHLINE_LOG_LEVEL',
   defaultZone: 'HITCHLINE_DEFAULT_ZONE',
+  writesPerMinute: 'HITCHLINE_WRITES_PER_MINUTE',
+  burst: 'HITCHLINE_BURST',
 };
 
 export function parseConfigFile(text: string): ConfigFile {
@@ -57,8 +63,11 @@ export function parseConfigFile(text: string): ConfigFile {
   for (const key of KEYS) {
     const value = source[key];
     if (value === undefined) continue;
-    if (key === 'port' && typeof value !== 'number') {
-      throw ValidationError.field('port', 'must be a number in the config file');
+    if (
+      (key === 'port' || key === 'writesPerMinute' || key === 'burst') &&
+      typeof value !== 'number'
+    ) {
+      throw ValidationError.field(key, 'must be a number in the config file');
     }
     if (key === 'allowedOrigins' && !Array.isArray(value)) {
       throw ValidationError.field('allowedOrigins', 'must be a list in the config file');

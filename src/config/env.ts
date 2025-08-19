@@ -17,6 +17,10 @@ export interface ApiToken {
 
 export interface Config {
   readonly store: StoreKind;
+  /** Writes a single caller may make in a minute before being held back. */
+  readonly writesPerMinute: number;
+  /** Writes a caller may make in one burst before the refill matters. */
+  readonly burst: number;
   readonly storePath: string;
   readonly host: string;
   readonly port: number;
@@ -32,10 +36,21 @@ export const DEFAULTS = {
   port: 8_417,
   logLevel: 'info' as LogLevel,
   defaultZone: 'UTC',
+  writesPerMinute: 120,
+  burst: 30,
 };
 
 const LOG_LEVELS: readonly LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error', 'silent'];
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+
+function readCount(raw: string | undefined, name: string, fallback: number): number {
+  if (raw === undefined || raw.trim().length === 0) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 100_000) {
+    throw ValidationError.field(name, `must be a whole number from 1 to 100000, got ${raw}`);
+  }
+  return value;
+}
 
 function readPort(raw: string | undefined): number {
   if (raw === undefined || raw.trim().length === 0) return DEFAULTS.port;
@@ -108,6 +123,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: readPort(env['HITCHLINE_PORT']),
     logLevel: readLogLevel(env['HITCHLINE_LOG_LEVEL']),
     defaultZone: zone,
+    writesPerMinute: readCount(
+      env['HITCHLINE_WRITES_PER_MINUTE'],
+      'HITCHLINE_WRITES_PER_MINUTE',
+      DEFAULTS.writesPerMinute,
+    ),
+    burst: readCount(env['HITCHLINE_BURST'], 'HITCHLINE_BURST', DEFAULTS.burst),
     tokens: parseTokens(env['HITCHLINE_TOKENS']),
   };
 }

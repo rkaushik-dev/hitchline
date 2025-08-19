@@ -108,3 +108,23 @@ describe('loading', () => {
     await expect(loadConfig(path, {})).rejects.toThrow(/must be a port number/);
   });
 });
+
+describe('the write limit in a file', () => {
+  it('is read and turned into environment values', () => {
+    expect(asEnvironment({ writesPerMinute: 600, burst: 90 })).toEqual({
+      HITCHLINE_WRITES_PER_MINUTE: '600',
+      HITCHLINE_BURST: '90',
+    });
+  });
+
+  it('refuses one that is not a number', () => {
+    expect(() => parseConfigFile('{"burst":"lots"}')).toThrow(/must be a number/);
+  });
+
+  it('reaches the config the server builds', async () => {
+    const path = await fileWith({ writesPerMinute: 600, burst: 90 });
+    const loaded = await loadConfig(path, {});
+    expect(loaded.config.writesPerMinute).toBe(600);
+    expect(loaded.config.burst).toBe(90);
+  });
+});
