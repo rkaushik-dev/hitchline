@@ -272,3 +272,39 @@ describe('NotFoundError shape', () => {
     expect(new NotFoundError('crew member', 'mem_1').message).toContain('crew member');
   });
 });
+
+describe('config show', () => {
+  it('prints the settings in force', async () => {
+    expect(await run('config', 'show')).toBe(EXIT_OK);
+    const text = context.text();
+    expect(text).toContain('memory');
+    expect(text).toContain('writes a minute');
+    expect(text).toContain('api version');
+  });
+
+  it('says how many tokens are loaded without printing one', async () => {
+    await run('config', 'show');
+    expect(context.text()).toContain('0 loaded');
+  });
+
+  it('says so when nothing would be let in', async () => {
+    await run('config', 'tokens');
+    expect(context.text()).toContain('every request will be turned away');
+  });
+
+  it('lists a token by member and scope, never in full', async () => {
+    context = recordingContext(store, {
+      ...config,
+      tokens: [
+        {
+          token: 'ada-token-0123456789',
+          memberId: 'mem_0123456789ABCDEF',
+          scopes: ['read', 'write'],
+        },
+      ],
+    });
+    await run('config', 'tokens');
+    expect(context.text()).toContain('read|write');
+    expect(context.text()).not.toContain('ada-token-0123456789');
+  });
+});
