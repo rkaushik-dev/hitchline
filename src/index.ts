@@ -27,6 +27,12 @@ export {
 export { roster, roleFor, effectiveRoleOn, type Roster } from './domain/rotation/roster.js';
 export { rosterOverride, type RosterOverride } from './domain/rotation/override.js';
 export { zoneOn, rotationDayAt, type RotationDay } from './domain/rotation/zoning.js';
+export {
+  buildCalendar,
+  blocksIn,
+  roleThrough,
+  type RoleCalendar,
+} from './domain/rotation/calendar.js';
 
 // Habits and what they ask for.
 export { habit, isRunningOn, type Habit, type HabitStatus } from './domain/habit/habit.js';
@@ -48,6 +54,41 @@ export { shield, isShielded, type Shield } from './domain/adherence/shield.js';
 export { quota, readQuota, type Quota } from './domain/adherence/quota.js';
 export { summarise, summariseByHitch, type PeriodSummary } from './domain/adherence/summary.js';
 export { byRole, byHourOfDay, trendOf, type Trend } from './domain/adherence/analytics.js';
+
+// Crews, sharing and the choices a person makes about their own account.
+export {
+  crew,
+  membership,
+  membersOn,
+  crewOf,
+  type Crew,
+  type Membership,
+} from './domain/crew/crew.js';
+export { crewMember, moveTo, type CrewMember } from './domain/crew/member.js';
+export {
+  sharingPreference,
+  canRead,
+  setHabitVisibility,
+  type SharingPreference,
+  type Visibility,
+} from './domain/crew/sharing.js';
+export {
+  memberPreferences,
+  defaultPreferences,
+  forDisplay,
+  type MemberPreferences,
+} from './domain/crew/preferences.js';
+
+// Nudges: the policy, the plan and what became of each one.
+export { nudgePolicy, DEFAULT_POLICY, type NudgePolicy } from './domain/nudge/policy.js';
+export { planNudges, type PlannedNudge } from './domain/nudge/planner.js';
+export {
+  planDispatch,
+  markSent,
+  markSeen,
+  shouldRetry,
+  type Dispatch,
+} from './domain/nudge/dispatch.js';
 
 // Time, which every one of the above is measured on.
 export {
@@ -88,7 +129,13 @@ export { createBus, domainEvent, type DomainEvent } from './app/events.js';
 export { createAuditLog, auditEverything, type AuditLog } from './app/audit.js';
 export { digest, subjectLine } from './app/digest.js';
 export { seedDemo, type SeedReport } from './app/seed.js';
-export { planRetention, retentionPolicy } from './app/retention.js';
+export { planRetention, retentionPolicy, type RetentionPlan } from './app/retention.js';
+export {
+  syncService,
+  settledIds,
+  type QueuedCheckIn,
+  type SyncReport,
+} from './app/sync.service.js';
 
 // Infrastructure and the surfaces on top of it.
 export { memoryStore, type MemoryStore } from './infra/store/memory.js';
@@ -96,7 +143,14 @@ export { fileStore, type FileStore } from './infra/store/file.js';
 export { openStore, closeStore, type OpenStore } from './infra/store/open.js';
 export { systemClock, fixedClock } from './infra/clock.js';
 export { randomIds, sequentialIds } from './infra/id.js';
-export { readConfig, type Config } from './config/env.js';
+export { readConfig, describeConfig, type Config } from './config/env.js';
 export { loadConfig } from './config/file.js';
 export { buildApp, buildAppWithMetrics, API_VERSION } from './http/app.js';
 export { buildProgram } from './cli/main.js';
+export { consoleContext, recordingContext, type Context } from './cli/context.js';
+export { checkInsToCsv, resultsToCsv, toCsv, type CsvColumn } from './export/csv.js';
+export { obligationsToCalendar, toCalendar } from './export/ics.js';
+export { readTable, parseCsv } from './import/csv.js';
+export { ROUTES, openApiDocument, type RouteDoc } from './http/manifest.js';
+export { CATALOGUE, entryFor, retryable } from './http/catalogue.js';
+export { apiMarkdown } from './http/docs.js';

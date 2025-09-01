@@ -75,3 +75,47 @@ describe('the public surface', () => {
     expect(report.summary.missed).toBe(0);
   });
 });
+
+describe('the wider surface', () => {
+  it('exports the crew and sharing rules', () => {
+    expect(typeof hitchline.crew).toBe('function');
+    expect(typeof hitchline.membership).toBe('function');
+    expect(typeof hitchline.canRead).toBe('function');
+    expect(typeof hitchline.memberPreferences).toBe('function');
+  });
+
+  it('exports the nudge policy, the plan and the dispatch record', () => {
+    expect(typeof hitchline.nudgePolicy).toBe('function');
+    expect(typeof hitchline.planNudges).toBe('function');
+    expect(typeof hitchline.planDispatch).toBe('function');
+    expect(typeof hitchline.shouldRetry).toBe('function');
+  });
+
+  it('exports the rotation calendar', () => {
+    expect(typeof hitchline.buildCalendar).toBe('function');
+    expect(typeof hitchline.blocksIn).toBe('function');
+  });
+
+  it('exports the import and export helpers', () => {
+    expect(typeof hitchline.checkInsToCsv).toBe('function');
+    expect(typeof hitchline.obligationsToCalendar).toBe('function');
+    expect(typeof hitchline.readTable).toBe('function');
+  });
+
+  it('exports the manifest and the error catalogue', () => {
+    expect(Array.isArray(hitchline.ROUTES)).toBe(true);
+    expect(Array.isArray(hitchline.CATALOGUE)).toBe(true);
+    expect(typeof hitchline.openApiDocument).toBe('function');
+    expect(typeof hitchline.apiMarkdown).toBe('function');
+  });
+
+  it('exports the sync path a handset uses', () => {
+    expect(typeof hitchline.syncService).toBe('function');
+    expect(typeof hitchline.settledIds).toBe('function');
+  });
+
+  it('does not leak the internals of the store', () => {
+    expect('openJournal' in hitchline).toBe(false);
+    expect('takeLock' in hitchline).toBe(false);
+  });
+});
