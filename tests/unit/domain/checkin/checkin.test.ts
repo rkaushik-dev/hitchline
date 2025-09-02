@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLOCK_SLACK_MS,
   amendReading,
   checkIn,
   compareCheckIns,
@@ -150,5 +151,18 @@ describe('ordering', () => {
     const second = a({ id: checkInId('chk_FEDCBA9876543210') });
     expect(compareCheckIns(first, second)).toBeLessThan(0);
     expect(compareCheckIns(first, first)).toBe(0);
+  });
+});
+
+describe('the clock slack', () => {
+  it('is the one number both the record and the service use', () => {
+    expect(CLOCK_SLACK_MS).toBe(5 * 60_000);
+  });
+
+  it('is what decides whether a handset reading is too far ahead', () => {
+    const inside = parseInstant('2025-01-10T07:26:00Z');
+    const outside = parseInstant('2025-01-10T07:24:00Z');
+    expect(() => a({ recordedAt: inside })).not.toThrow();
+    expect(() => a({ recordedAt: outside })).toThrow(/before the check in happened/);
   });
 });

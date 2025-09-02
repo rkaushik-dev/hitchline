@@ -52,9 +52,3 @@ export function buildServer(options: ServerOptions): FastifyInstance {
 
   return app;
 }
-
-export async function startServer(options: ServerOptions): Promise<FastifyInstance> {
-  const app = buildServer(options);
-  await app.listen({ host: options.config.host, port: options.config.port });
-  return app;
-}

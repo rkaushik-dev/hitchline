@@ -17,8 +17,6 @@ const idOf = (prefix: string) =>
 
 export const memberIdSchema = idOf('mem');
 export const habitIdSchema = idOf('hab');
-export const checkInIdSchema = idOf('chk');
-export const crewIdSchema = idOf('crw');
 
 export const createHabitSchema = z.object({
   memberId: memberIdSchema,

@@ -40,9 +40,6 @@ export interface CheckInsService {
 
 /** How far back a check in may be dated. Anything older needs a supervisor. */
 export const BACKFILL_LIMIT_DAYS = 14;
-/** How far into the future a handset clock is allowed to be wrong. */
-export const FUTURE_SLACK_MS = CLOCK_SLACK_MS;
-
 export function checkInsService(ports: Ports): CheckInsService {
   async function loadEntry(id: CheckInId): Promise<CheckIn> {
     const found = await ports.checkIns.byId(id);
@@ -59,7 +56,7 @@ export function checkInsService(ports: Ports): CheckInsService {
 
       const now = ports.clock.now();
       const at: Instant = command.at === undefined ? now : parseInstant(command.at);
-      if (at.epochMs > now.epochMs + FUTURE_SLACK_MS) {
+      if (at.epochMs > now.epochMs + CLOCK_SLACK_MS) {
         throw ValidationError.field('at', 'is in the future');
       }
 

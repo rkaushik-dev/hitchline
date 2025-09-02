@@ -144,3 +144,39 @@ describe('reading it back', () => {
     expect(lastMetLabel({ ...summary, lastMetOn: undefined })).toBe('never');
   });
 });
+
+describe('the window the freezes are counted over', () => {
+  it('is measured in whole days the same way everything else is', () => {
+    const budget = freezeBudget({ allowance: 1, windowDays: 3 });
+    const inside = computeFrozenStreak({
+      results: aRun('2025-06-02', ['met', 'missed', 'met', 'missed', 'met']),
+      shields: [],
+      memberId: ada,
+      budget,
+    });
+    expect(inside.current).toBe(1);
+
+    const outside = computeFrozenStreak({
+      results: aRun('2025-06-02', ['met', 'missed', 'met', 'met', 'met', 'missed', 'met']),
+      shields: [],
+      memberId: ada,
+      budget,
+    });
+    // Both misses were carried, because the first freeze came back before the
+    // second one was needed, so the run never broke.
+    expect(outside.frozen).toBe(2);
+    expect(outside.current).toBe(5);
+  });
+
+  it('counts a freeze spent on the boundary day as still live', () => {
+    const budget = freezeBudget({ allowance: 1, windowDays: 2 });
+    const summary = computeFrozenStreak({
+      results: aRun('2025-06-02', ['met', 'missed', 'missed']),
+      shields: [],
+      memberId: ada,
+      budget,
+    });
+    expect(summary.frozen).toBe(1);
+    expect(summary.current).toBe(0);
+  });
+});

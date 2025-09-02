@@ -9,7 +9,7 @@ import { formatInstant, type Instant } from '../time/zone.js';
  */
 export type CheckInSource = 'app' | 'watch' | 'kiosk' | 'import' | 'supervisor';
 
-export const CHECK_IN_SOURCES: readonly CheckInSource[] = [
+const CHECK_IN_SOURCES: readonly CheckInSource[] = [
   'app',
   'watch',
   'kiosk',

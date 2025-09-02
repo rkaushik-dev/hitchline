@@ -54,7 +54,7 @@ export const CHECK_IN_COLUMNS: CsvColumn<ResolvedCheckIn>[] = [
   { header: 'note', get: (row) => row.checkIn.note },
 ];
 
-export const RESULT_COLUMNS: CsvColumn<ObligationResult>[] = [
+const RESULT_COLUMNS: CsvColumn<ObligationResult>[] = [
   { header: 'habit_id', get: (row) => row.obligation.habitId },
   { header: 'scope', get: (row) => row.obligation.scope },
   { header: 'window', get: (row) => formatDateRange(row.obligation.window) },
@@ -68,7 +68,7 @@ export const RESULT_COLUMNS: CsvColumn<ObligationResult>[] = [
   { header: 'status', get: (row) => row.status },
 ];
 
-export const ROSTER_COLUMNS: CsvColumn<RosterDay>[] = [
+const ROSTER_COLUMNS: CsvColumn<RosterDay>[] = [
   { header: 'date', get: (row) => formatCivilDate(row.date) },
   { header: 'role', get: (row) => row.role },
   { header: 'source', get: (row) => row.source },

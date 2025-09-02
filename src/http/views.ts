@@ -79,10 +79,13 @@ export interface CheckInView {
   readonly reading: number | null;
   readonly note: string;
   readonly source: string;
-  readonly onDate: string | null;
-  readonly zone: string | null;
 }
 
+/**
+ * A stored row on its own. It carries no rotation day, because a row that has
+ * not been resolved does not know which one it belongs to and a null there
+ * only ever got mistaken for "no day".
+ */
 export function checkInView(entry: CheckIn): CheckInView {
   return {
     id: entry.id,
@@ -91,12 +94,15 @@ export function checkInView(entry: CheckIn): CheckInView {
     reading: entry.reading ?? null,
     note: entry.note,
     source: entry.source,
-    onDate: null,
-    zone: null,
   };
 }
 
-export function resolvedView(item: ResolvedCheckIn): CheckInView {
+export interface ResolvedCheckInView extends CheckInView {
+  readonly onDate: string;
+  readonly zone: string;
+}
+
+export function resolvedView(item: ResolvedCheckIn): ResolvedCheckInView {
   return {
     ...checkInView(item.checkIn),
     onDate: formatCivilDate(item.day.date),

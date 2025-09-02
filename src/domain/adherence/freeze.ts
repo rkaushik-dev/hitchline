@@ -1,5 +1,5 @@
 import { ValidationError } from '../errors.js';
-import { compareCivil, formatCivilDate, type CivilDate } from '../time/civil.js';
+import { compareCivil, daysBetween, formatCivilDate, type CivilDate } from '../time/civil.js';
 import { isSettled, type ObligationResult } from './match.js';
 import { isShielded, type Shield } from './shield.js';
 import type { CrewMemberId } from '../ids.js';
@@ -42,12 +42,6 @@ export interface FreezeRequest {
   readonly shields: readonly Shield[];
   readonly memberId: CrewMemberId;
   readonly budget?: FreezeBudget;
-}
-
-function daysBetween(from: CivilDate, to: CivilDate): number {
-  const start = Date.UTC(from.year, from.month - 1, from.day);
-  const end = Date.UTC(to.year, to.month - 1, to.day);
-  return Math.round((end - start) / 86_400_000);
 }
 
 /**

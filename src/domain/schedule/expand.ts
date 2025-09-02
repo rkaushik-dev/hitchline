@@ -1,4 +1,4 @@
-import { addDays, daysBetween, isBefore, type CivilDate } from '../time/civil.js';
+import { addDays, daysBetween, isBefore } from '../time/civil.js';
 import { clampRange, dateRange, daysOf, rangesIntersect, type DateRange } from '../time/range.js';
 import { isRunningOn, type Habit } from '../habit/habit.js';
 import { asOf, type HabitHistory } from '../habit/revision.js';
@@ -190,9 +190,4 @@ export function habitWindow(entry: Habit, window: DateRange): DateRange | undefi
   const end = entry.endsOn ?? window.to;
   if (isBefore(end, entry.startsOn)) return undefined;
   return clampRange(window, dateRange(entry.startsOn, end));
-}
-
-/** The days of a window a habit could be asked about at all. */
-export function liveDays(entry: Habit, window: DateRange): CivilDate[] {
-  return daysOf(window).filter((date) => isRunningOn(entry, date));
 }

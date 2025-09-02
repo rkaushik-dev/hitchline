@@ -36,7 +36,7 @@ function parameterTable(route: RouteDoc): string[] {
   return lines;
 }
 
-export function routeMarkdown(route: RouteDoc): string {
+function routeMarkdown(route: RouteDoc): string {
   const lines = [`### ${route.method} ${route.path}`, '', route.summary, '', scopeNote(route)];
   lines.push(...parameterTable(route));
   return lines.join('\n');

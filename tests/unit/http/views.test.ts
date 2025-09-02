@@ -65,10 +65,10 @@ describe('check in views', () => {
     reading: 22,
   });
 
-  it('leaves the day empty until it is resolved', () => {
+  it('carries no rotation day until it is resolved', () => {
     const view = checkInView(entry);
-    expect(view.onDate).toBeNull();
-    expect(view.zone).toBeNull();
+    expect('onDate' in view).toBe(false);
+    expect('zone' in view).toBe(false);
     expect(view.reading).toBe(22);
   });
 
