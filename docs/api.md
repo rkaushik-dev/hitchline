@@ -1,4 +1,4 @@
-# hitchline api 0.1.0
+# hitchline api 1.0.0
 
 Every response is json. Errors carry a code, a message and a list of the fields
 that were wrong, and the code is the part worth branching on.

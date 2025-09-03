@@ -1,6 +1,8 @@
 # hitchline
 
-Adherence tracking for people who do not live on a calendar week.
+Version 1.0.0. Adherence tracking for people who do not live on a calendar
+week. The api surface is frozen at this release; see
+[CHANGELOG.md](CHANGELOG.md) for what that covers and what it does not.
 
 A crew member on a 14 and 14 rotation does not have Mondays. They have day one
 of a hitch, a travel day at each end, and a fortnight at home where the same
@@ -96,3 +98,4 @@ manifest the server registers, and a test fails if the two drift apart.
     npm run test:perf     # the timings, kept out of the default run
     npm run test:coverage
     npm run docs          # regenerate docs/api.md
+    npm run cli -- config version

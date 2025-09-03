@@ -308,3 +308,18 @@ describe('config show', () => {
     expect(context.text()).not.toContain('ada-token-0123456789');
   });
 });
+
+describe('config version', () => {
+  it('names the api version and what it is running on', async () => {
+    expect(await run('config', 'version')).toBe(EXIT_OK);
+    const text = context.text();
+    expect(text).toContain('api');
+    expect(text).toContain(process.version);
+    expect(text).toContain(process.platform);
+  });
+
+  it('names the store it would open', async () => {
+    await run('config', 'version');
+    expect(context.text()).toContain('memory');
+  });
+});

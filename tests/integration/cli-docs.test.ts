@@ -8,6 +8,7 @@ import { readConfig } from '../../src/config/env.js';
 import { memoryStore } from '../../src/infra/store/memory.js';
 import { fixedClock } from '../../src/infra/clock.js';
 import { ROUTES } from '../../src/http/manifest.js';
+import { API_VERSION } from '../../src/http/app.js';
 
 const config = { ...readConfig({}), store: 'memory' as const };
 let context: Recorder;
@@ -34,7 +35,7 @@ describe('the api reference', () => {
   it('opens with the version and lists every route', async () => {
     expect(await run('docs', 'api')).toBe(EXIT_OK);
     const text = context.text();
-    expect(text.startsWith('# hitchline api 0.1.0')).toBe(true);
+    expect(text.startsWith(`# hitchline api ${API_VERSION}`)).toBe(true);
     for (const route of ROUTES) {
       expect(text).toContain(`### ${route.method} ${route.path}`);
     }

@@ -55,5 +55,23 @@ export function configCommands(context: () => Context): Command {
       });
     });
 
+  command
+    .command('version')
+    .description('the api version, the build and what it is running on')
+    .action(async () => {
+      const ctx = context();
+      process.exitCode = await runCommand(ctx, () => {
+        ctx.out(
+          keyValues([
+            ['api', API_VERSION],
+            ['node', process.version],
+            ['platform', `${process.platform} ${process.arch}`],
+            ['store', ctx.config.store],
+          ]),
+        );
+        return Promise.resolve();
+      });
+    });
+
   return command;
 }
