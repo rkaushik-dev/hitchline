@@ -139,6 +139,17 @@ export const ROUTES: readonly RouteDoc[] = [
     scope: 'write',
     parameters: [MEMBER],
   },
+  {
+    method: 'GET',
+    path: '/audit',
+    summary: 'what anybody did, newest first',
+    scope: 'admin',
+    parameters: [
+      { ...WINDOW, required: false },
+      { name: 'memberId', in: 'query', required: false, description: 'narrow to one person' },
+      { name: 'zone', in: 'query', required: false, description: 'zone the window is read in' },
+    ],
+  },
   { method: 'POST', path: '/crews', summary: 'start a crew', scope: 'admin', parameters: [] },
   {
     method: 'GET',

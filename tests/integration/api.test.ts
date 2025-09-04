@@ -420,3 +420,66 @@ describe('a handset syncing what it queued', () => {
     expect(response.statusCode).toBe(403);
   });
 });
+
+describe('the audit trail over http', () => {
+  it('is admin only', async () => {
+    expect((await call('GET', '/audit', adaToken.token)).statusCode).toBe(403);
+    expect((await call('GET', '/audit', adminToken.token)).statusCode).toBe(200);
+  });
+
+  it('holds a line for everything the api did', async () => {
+    await call('POST', '/habits', adaToken.token, {
+      memberId: ada,
+      name: 'Twenty minutes on the treadmill',
+      cadence: '1/day',
+      startsOn: '2025-01-06',
+    });
+    const response = await call('GET', '/audit', adminToken.token);
+    const body = response.json<{ items: { name: string; line: string }[]; total: number }>();
+    expect(body.total).toBe(1);
+    expect(body.items[0]?.name).toBe('habit.created');
+    expect(body.items[0]?.line).toContain('habit.created');
+  });
+
+  it('puts the newest first', async () => {
+    for (const name of ['Row the ergometer', 'Bank the sleep hours']) {
+      await call('POST', '/habits', adaToken.token, {
+        memberId: ada,
+        name,
+        cadence: '1/day',
+        startsOn: '2025-01-06',
+      });
+    }
+    const response = await call('GET', '/audit', adminToken.token);
+    const body = response.json<{ items: { sequence: number }[] }>();
+    expect(body.items[0]?.sequence).toBe(2);
+  });
+
+  it('narrows to one member', async () => {
+    await call('POST', '/habits', adaToken.token, {
+      memberId: ada,
+      name: 'Row the ergometer',
+      cadence: '1/day',
+      startsOn: '2025-01-06',
+    });
+    const mine = await call('GET', `/audit?memberId=${ada}`, adminToken.token);
+    expect(mine.json<{ total: number }>().total).toBe(1);
+    const theirs = await call('GET', `/audit?memberId=${bo}`, adminToken.token);
+    expect(theirs.json<{ total: number }>().total).toBe(0);
+  });
+
+  it('pages like every other list', async () => {
+    for (const name of ['Row the ergometer', 'Bank the sleep hours', 'Call home']) {
+      await call('POST', '/habits', adaToken.token, {
+        memberId: ada,
+        name,
+        cadence: '1/day',
+        startsOn: '2025-01-06',
+      });
+    }
+    const first = await call('GET', '/audit?limit=2', adminToken.token);
+    const body = first.json<{ items: unknown[]; nextCursor: string | null }>();
+    expect(body.items).toHaveLength(2);
+    expect(body.nextCursor).not.toBeNull();
+  });
+});

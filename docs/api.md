@@ -121,6 +121,18 @@ needs the write scope
 | --- | --- | --- | --- |
 | memberId | path | yes | the crew member the record belongs to |
 
+### GET /audit
+
+what anybody did, newest first
+
+needs the admin scope
+
+| parameter | in | required | what it is |
+| --- | --- | --- | --- |
+| window | query | no | inclusive day range written as YYYY-MM-DD..YYYY-MM-DD |
+| memberId | query | no | narrow to one person |
+| zone | query | no | zone the window is read in |
+
 ### POST /crews
 
 start a crew

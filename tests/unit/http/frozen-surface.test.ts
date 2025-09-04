@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ROUTES } from '../../../src/http/manifest.js';
-import { registerRoutes } from '../../../src/http/routes/index.js';
-import { buildServer } from '../../../src/http/server.js';
+import { buildApp } from '../../../src/http/app.js';
 import { readConfig } from '../../../src/config/env.js';
 import { memoryStore } from '../../../src/infra/store/memory.js';
 import { fixedClock } from '../../../src/infra/clock.js';
@@ -26,16 +25,16 @@ const FROZEN = [
   'GET /members/:memberId/adherence',
   'GET /members/:memberId/nudges',
   'POST /members/:memberId/sync',
+  'GET /audit',
   'POST /crews',
   'GET /crews/:crewId/comparison',
 ];
 
 function registered(): string[] {
-  const app = buildServer({
+  const app = buildApp({
     config: { ...readConfig({}), store: 'memory', logLevel: 'silent' },
     ports: memoryStore({ clock: fixedClock('2025-08-25T09:00:00Z') }),
   });
-  registerRoutes(app, memoryStore({ clock: fixedClock('2025-08-25T09:00:00Z') }));
   const printed = app.printRoutes({ commonPrefix: false });
   void app.close();
   return printed.split('\n');
