@@ -81,6 +81,7 @@ class NumbersTest {
             assertThat(Numbers.round(-2.5)).isEqualTo(-2);
             assertThat(Numbers.round(2.4)).isEqualTo(2);
             assertThat(Numbers.roundTo(0.125, 2)).isEqualTo(0.13);
+            assertThat(Numbers.round(0.49999999999999994)).isZero();
         }
     }
 }
