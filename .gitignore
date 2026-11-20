@@ -1,9 +1,23 @@
-node_modules
-dist
-coverage
+# Gradle and the JVM
+build/
+.gradle/
+out/
+target/
 *.log
+
+# Editors
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Local settings and the default store directory written by local runs
 .env
 .env.*
 !.env.example
 .hitchline-data
-.DS_Store
+
+# Left over from the previous toolchain until its files are removed
+node_modules
+dist
+coverage
