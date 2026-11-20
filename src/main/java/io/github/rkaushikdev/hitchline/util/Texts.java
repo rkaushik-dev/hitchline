@@ -2,6 +2,7 @@ package io.github.rkaushikdev.hitchline.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * String operations whose exact behaviour the stored formats and printed reports depend on.
@@ -11,7 +12,19 @@ import java.util.List;
  */
 public final class Texts {
 
+    /** One white space character, as {@link #isSpace} defines it. */
+    public static final String SPACE_CLASS =
+            "[\\t\\n\\u000B\\f\\r \\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]";
+
+    /** A run of white space, as {@link #isSpace} defines it. */
+    public static final Pattern SPACE_RUN = Pattern.compile(SPACE_CLASS + "+");
+
     private Texts() {}
+
+    /** Squeezes every run of white space to one space and trims the ends. */
+    public static String squeeze(String value) {
+        return trim(SPACE_RUN.matcher(value).replaceAll(" "));
+    }
 
     /**
      * Splits on a literal separator and keeps every part, empty ones included, so {@code "a,,b,"}
