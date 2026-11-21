@@ -171,11 +171,6 @@ public final class FileStore implements Ports, Durable {
         journal.append(kind, Operation.PUT, row, Zones.formatInstant(clock.now()));
     }
 
-    /** The journal behind the store, for maintenance commands. */
-    public Journal journal() {
-        return journal;
-    }
-
     @Override
     public void flush() {
         journal.flush();
