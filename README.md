@@ -1,5 +1,11 @@
 # hitchline
 
+[![CI](https://github.com/rkaushik-dev/hitchline/actions/workflows/ci.yml/badge.svg)](https://github.com/rkaushik-dev/hitchline/actions/workflows/ci.yml)
+![Java 21](https://img.shields.io/badge/Java-21-007396)
+![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F)
+![Gradle](https://img.shields.io/badge/build-Gradle-02303A)
+![JUnit 5](https://img.shields.io/badge/tests-JUnit%205-25A162)
+
 Version 1.0.0. Adherence tracking for people who do not live on a calendar
 week. The api surface is frozen at this release; see
 [CHANGELOG.md](CHANGELOG.md) for what that covers and what it does not.
