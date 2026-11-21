@@ -23,7 +23,6 @@ repositories {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'info.picocli:picocli:4.7.7'
 	annotationProcessor 'info.picocli:picocli-codegen:4.7.7'
 
@@ -48,6 +47,24 @@ tasks.named('compileJava', JavaCompile) {
 application {
 	mainClass = 'io.github.rkaushikdev.hitchline.bin.Hitchline'
 	applicationName = 'hitchline'
+}
+
+// The api process gets its own start script beside the command line's.
+def serveStartScripts = tasks.register('serveStartScripts', CreateStartScripts) {
+	mainClass = 'io.github.rkaushikdev.hitchline.bin.Serve'
+	applicationName = 'hitchline-serve'
+	outputDir = layout.buildDirectory.dir('serve-scripts').get().asFile
+	classpath = tasks.named('startScripts', CreateStartScripts).get().classpath
+}
+
+distributions {
+	main {
+		contents {
+			from(serveStartScripts) {
+				into 'bin'
+			}
+		}
+	}
 }
 
 springBoot {
