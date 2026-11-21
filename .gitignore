@@ -16,8 +16,3 @@ target/
 .env.*
 !.env.example
 .hitchline-data
-
-# Left over from the previous toolchain until its files are removed
-node_modules
-dist
-coverage
