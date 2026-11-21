@@ -65,8 +65,7 @@ tasks.named('jar', Jar) {
 	}
 }
 
-tasks.named('test', Test) {
-	useJUnitPlatform()
+tasks.withType(Test).configureEach {
 	maxParallelForks = 1
 	// Mockito's agent appends to the boot class path when the web slices load it; without
 	// class-data sharing the JVM has nothing to warn about.
@@ -78,7 +77,24 @@ tasks.named('test', Test) {
 		events 'failed'
 		exceptionFormat = 'full'
 	}
+}
+
+tasks.named('test', Test) {
+	useJUnitPlatform {
+		excludeTags 'performance'
+	}
 	finalizedBy tasks.named('jacocoTestReport')
+}
+
+// Timing budgets for the hot paths, run on demand and kept out of check so a busy machine cannot fail the build.
+tasks.register('performanceTest', Test) {
+	description = 'Runs the tests tagged performance.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'performance'
+	}
 }
 
 jacoco {
