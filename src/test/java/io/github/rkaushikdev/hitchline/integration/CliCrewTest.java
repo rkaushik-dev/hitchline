@@ -119,7 +119,7 @@ class CliCrewTest {
             String lead = firstMember();
             context.clear();
             assertThat(run("crew", "compare", crewId, lead, "--on", "2025-01-10"))
-                    .isEqualTo(Context.EXIT_MISUSED);
+                    .isEqualTo(Context.EXIT_FAILED);
             assertThat(context.errorText()).contains("--window");
             assertThat(context.text()).isEmpty();
         }

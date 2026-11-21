@@ -31,8 +31,10 @@ import picocli.CommandLine.UnmatchedArgumentException;
  *
  * <p>Words are read the way operators expect: a repeated option keeps its last value, an option's
  * value is the next word even when that word starts with a dash, and {@code @file} words are left
- * alone. A command line that cannot be read exits {@link Context#EXIT_MISUSED} after the problem
- * and the usage of the command it was meant for.
+ * alone. A command line that cannot be read (an unknown command or option, a missing required
+ * option, a group named without one of its commands) exits {@link Context#EXIT_FAILED} after the
+ * problem and the usage of the command it was meant for. {@link Context#EXIT_MISUSED} is kept for
+ * a value the domain refused.
  */
 public final class Main {
 
@@ -144,7 +146,7 @@ public final class Main {
                 return Context.EXIT_OK;
             }
         } catch (ParameterException misuse) {
-            return misused(misuse);
+            return unreadable(misuse);
         }
         ParseResult named = parsed;
         while (named.hasSubcommand()) {
@@ -153,10 +155,10 @@ public final class Main {
         if (named.commandSpec().userObject() instanceof Action action) {
             return action.call();
         }
-        return misused(new ParameterException(named.commandSpec().commandLine(), "Missing required subcommand"));
+        return unreadable(new ParameterException(named.commandSpec().commandLine(), "Missing required subcommand"));
     }
 
-    private static int misused(ParameterException misuse) {
+    private static int unreadable(ParameterException misuse) {
         CommandLine where = misuse.getCommandLine();
         PrintWriter err = where.getErr();
         err.println(misuse.getMessage());
@@ -164,6 +166,6 @@ public final class Main {
             where.usage(err);
         }
         err.flush();
-        return Context.EXIT_MISUSED;
+        return Context.EXIT_FAILED;
     }
 }
