@@ -1,0 +1,220 @@
+package io.github.rkaushikdev.hitchline.app;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
+
+import io.github.rkaushikdev.hitchline.app.AdherenceService.AdherenceReport;
+import io.github.rkaushikdev.hitchline.app.CheckInsService.RecordCheckInCommand;
+import io.github.rkaushikdev.hitchline.app.RosterService.HoldCommand;
+import io.github.rkaushikdev.hitchline.app.RosterService.ShieldCommand;
+import io.github.rkaushikdev.hitchline.domain.Ids;
+import io.github.rkaushikdev.hitchline.domain.NotFoundException;
+import io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus;
+import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
+import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
+import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
+import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
+import io.github.rkaushikdev.hitchline.domain.adherence.Trend;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
+import io.github.rkaushikdev.hitchline.infra.Clocks;
+import io.github.rkaushikdev.hitchline.infra.IdSources;
+import io.github.rkaushikdev.hitchline.infra.MutableClock;
+import io.github.rkaushikdev.hitchline.infra.store.MemoryStore;
+import io.github.rkaushikdev.hitchline.support.Fixtures;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+class AdherenceServiceTest {
+
+    private static final String ADA = Ids.crewMemberId("mem_0123456789ABCDEF");
+    private static final String TREADMILL = Ids.habitId("hab_0123456789ABCDEF");
+
+    private MutableClock clock;
+    private MemoryStore store;
+    private AdherenceService service;
+    private CheckInsService checkIns;
+    private RosterService rosters;
+
+    @BeforeEach
+    void create() {
+        clock = Clocks.fixedClock("2025-01-20T09:00:00Z");
+        store = MemoryStore.create(clock, IdSources.sequentialIds());
+        service = new AdherenceService(store);
+        checkIns = new CheckInsService(store);
+        rosters = new RosterService(store);
+        store.members().save(Fixtures.aMember());
+        store.habits().save(Fixtures.aHabit(o -> o.cadence("1/onshift-day").startsOn("2025-01-06")));
+    }
+
+    private void checkInOn(String day) {
+        checkIns.record(RecordCheckInCommand.of(TREADMILL).withAt(day + "T09:00:00Z"));
+    }
+
+    private void holdOver() {
+        rosters.hold(new HoldCommand(
+                ADA, "2025-01-20..2025-01-22", DayRole.ONSHIFT, OverrideReason.HELD_OVER, Optional.empty()));
+    }
+
+    private void shieldLeave() {
+        rosters.shieldDays(new ShieldCommand(
+                ADA, "2025-01-13..2025-01-15", ShieldReason.ANNUAL_LEAVE, Optional.empty(), Optional.empty()));
+    }
+
+    @Nested
+    class AReportOverAHitch {
+
+        @Test
+        void owesOneObligationForEachShiftDay() {
+            assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().owed())
+                    .isEqualTo(14);
+        }
+
+        @Test
+        void owesNothingOverAFortnightAtHome() {
+            assertThat(service.report(ADA, "2025-01-20..2025-02-02").summary().owed())
+                    .isZero();
+        }
+
+        @Test
+        void countsWhatWasDone() {
+            checkInOn("2025-01-06");
+            checkInOn("2025-01-07");
+            AdherenceReport report = service.report(ADA, "2025-01-06..2025-01-19");
+            assertThat(report.summary().met()).isEqualTo(2);
+            assertThat(report.summary().missed()).isEqualTo(12);
+        }
+
+        @Test
+        void ratesTheSettledDays() {
+            checkInOn("2025-01-06");
+            assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().rate())
+                    .isCloseTo(1.0 / 14, within(1e-9));
+        }
+
+        @Test
+        void reportsTheWindowAndTheDayItWasRun() {
+            AdherenceReport report = service.report(ADA, "2025-01-06..2025-01-19");
+            assertThat(report.window().toString()).isEqualTo("2025-01-06..2025-01-19");
+            assertThat(report.asOf().day()).isEqualTo(20);
+        }
+
+        @Test
+        void splitsTheWindowByHabitAndByHitch() {
+            store.habits()
+                    .save(Fixtures.aHabit(
+                            o -> o.id("hab_FEDCBA9876543210").cadence("1/hitch").startsOn("2025-01-06")));
+            AdherenceReport report = service.report(ADA, "2025-01-06..2025-02-02");
+            assertThat(report.byHabit()).hasSize(2);
+            assertThat(report.byHitch()).hasSize(1);
+        }
+
+        @Test
+        void complainsAboutAMemberItDoesNotHold() {
+            assertThatThrownBy(() -> service.report(Ids.crewMemberId("mem_9999999999999999"), "2025-01-06..2025-01-19"))
+                    .isInstanceOf(NotFoundException.class);
+        }
+    }
+
+    @Nested
+    class OverridesAndShieldsFeedTheReport {
+
+        @Test
+        void addsTheDaysAnOverrideHeldSomebodyOver() {
+            holdOver();
+            assertThat(service.report(ADA, "2025-01-20..2025-02-02").summary().owed())
+                    .isEqualTo(3);
+        }
+
+        @Test
+        void countsShieldedDaysInTheSummary() {
+            shieldLeave();
+            assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().shieldedDays())
+                    .isEqualTo(3);
+        }
+    }
+
+    @Nested
+    class Streaks {
+
+        @Test
+        void countsAnUnbrokenRunOfShiftDays() {
+            for (String day : List.of("2025-01-06", "2025-01-07", "2025-01-08")) {
+                checkInOn(day);
+            }
+            assertThat(service.streak(ADA, TREADMILL, "2025-01-06..2025-01-08").current())
+                    .isEqualTo(3);
+        }
+
+        @Test
+        void survivesAShieldedGap() {
+            for (String day : List.of("2025-01-12", "2025-01-16")) {
+                checkInOn(day);
+            }
+            shieldLeave();
+            StreakSummary summary = service.streak(ADA, TREADMILL, "2025-01-12..2025-01-16");
+            assertThat(summary.current()).isEqualTo(2);
+            assertThat(summary.shielded()).isEqualTo(3);
+        }
+
+        @Test
+        void complainsAboutAHabitTheMemberDoesNotHave() {
+            assertThatThrownBy(() -> service.streak(ADA, Ids.habitId("hab_9999999999999999"), "2025-01-06..2025-01-19"))
+                    .isInstanceOf(NotFoundException.class);
+        }
+    }
+
+    @Nested
+    class WhatIsStillOpen {
+
+        @Test
+        void listsOnlyThePendingObligationsWithNothingDone() {
+            clock.set(store.clock().now());
+            assertThat(service.open(ADA, "2025-01-06..2025-01-31"))
+                    .allMatch(result -> result.status() == AdherenceStatus.PENDING);
+        }
+
+        @Test
+        void dropsOneThatHasBeenDone() {
+            List<ObligationResult> before = service.open(ADA, "2025-01-20..2025-01-31");
+            holdOver();
+            List<ObligationResult> after = service.open(ADA, "2025-01-20..2025-01-31");
+            assertThat(after.size()).isGreaterThan(before.size());
+        }
+    }
+
+    @Nested
+    class TheShapeOfAReport {
+
+        @Test
+        void splitsTheResultsByTheRoleOfTheDay() {
+            checkInOn("2025-01-06");
+            AdherenceReport report = service.report(ADA, "2025-01-06..2025-01-19");
+            assertThat(report.byRole().stream().map(RoleSplit::role)).containsExactly(DayRole.ONSHIFT);
+            assertThat(report.byRole().get(0).owed()).isEqualTo(14);
+        }
+
+        @Test
+        void saysItCannotReadATrendFromOneHitch() {
+            assertThat(service.report(ADA, "2025-01-06..2025-01-19").trend()).isEqualTo(Trend.UNKNOWN);
+        }
+
+        @Test
+        void namesTheBusiestHourOnceSomethingHasBeenRecorded() {
+            checkInOn("2025-01-06");
+            checkInOn("2025-01-07");
+            assertThat(service.report(ADA, "2025-01-06..2025-01-19").busiestHour())
+                    .hasValue(10);
+        }
+
+        @Test
+        void hasNoBusiestHourWhenNothingHasBeenRecorded() {
+            assertThat(service.report(ADA, "2025-01-06..2025-01-19").busiestHour())
+                    .isEmpty();
+        }
+    }
+}

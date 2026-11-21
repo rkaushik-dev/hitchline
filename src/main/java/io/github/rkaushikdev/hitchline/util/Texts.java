@@ -76,6 +76,15 @@ public final class Texts {
         return value.substring(start, end);
     }
 
+    /** Removes trailing white space, as {@link #isSpace} defines it. */
+    public static String trimEnd(String value) {
+        int end = value.length();
+        while (end > 0 && isSpace(value.charAt(end - 1))) {
+            end -= 1;
+        }
+        return value.substring(0, end);
+    }
+
     /** Pads {@code value} on the left with {@code fill} up to {@code width} UTF-16 units. */
     public static String padStart(String value, int width, char fill) {
         if (value.length() >= width) {
