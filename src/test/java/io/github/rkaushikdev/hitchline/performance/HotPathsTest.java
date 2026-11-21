@@ -32,10 +32,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
- * Timing budgets for the paths that grow with a crew. The class is tagged {@code performance}, so
- * it runs with {@code ./gradlew performanceTest} and stays out of the default build.
+ * The stopwatch, and timing budgets for the paths that grow with a crew. The timed group is tagged
+ * {@code performance}, so it runs with {@code ./gradlew performanceTest} and stays out of the
+ * default build; the stopwatch's own tests time nothing and run with everything else.
  */
-@Tag("performance")
 class HotPathsTest {
 
     private static final CrewMember MEMBER = Fixtures.aMember();
@@ -97,6 +97,7 @@ class HotPathsTest {
     }
 
     @Nested
+    @Tag("performance")
     class ThePathsThatGrowWithACrew {
 
         @Test
