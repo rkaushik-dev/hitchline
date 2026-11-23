@@ -13,6 +13,7 @@ import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.checkin.CheckIn;
 import io.github.rkaushikdev.hitchline.domain.checkin.CheckInSource;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
+import io.github.rkaushikdev.hitchline.domain.time.Zones;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
 import io.github.rkaushikdev.hitchline.infra.IdSources;
 import io.github.rkaushikdev.hitchline.infra.MutableClock;
@@ -48,6 +49,78 @@ class CheckInsServiceTest {
 
     private static RecordCheckInCommand treadmill() {
         return RecordCheckInCommand.of(TREADMILL);
+    }
+
+    @Nested
+    class ReadingsLongerThanTheDay {
+
+        private static final String REST = Ids.habitId("hab_FEDCBA9876543210");
+
+        private void restHabit(String target) {
+            store.habits().save(Fixtures.aHabit(o -> o.id("hab_FEDCBA9876543210")
+                    .cadence("1/day")
+                    .target(target)
+                    .startsOn("2025-01-01")));
+        }
+
+        private RecordCheckInCommand rest(String at, double reading) {
+            return RecordCheckInCommand.of(REST).withAt(at).withReading(reading).withSource(CheckInSource.SUPERVISOR);
+        }
+
+        @Test
+        void refusesMinutesThatAddUpPastTheDay() {
+            restHabit("at least 600 minutes");
+            record(rest("2025-01-08T02:00:00Z", 1000));
+            assertThatThrownBy(() -> record(rest("2025-01-08T16:00:00Z", 500)))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("takes 2025-01-08 to 1500 minutes, more than the 1440 the day holds");
+            assertThat(record(rest("2025-01-08T16:00:00Z", 440)).accepted()).isTrue();
+        }
+
+        @Test
+        void holdsTheDayTheClocksGoForwardToTwentyThreeHours() {
+            restHabit("at least 10 hours");
+            clock.set(Zones.parseInstant("2025-04-01T09:00:00Z"));
+            assertThatThrownBy(() -> record(rest("2025-03-30T12:00:00Z", 23.5)))
+                    .hasMessageContaining("more than the 23 the day holds");
+            assertThat(record(rest("2025-03-30T12:00:00Z", 23)).accepted()).isTrue();
+        }
+
+        @Test
+        void leavesOutAVoidedReading() {
+            restHabit("at least 10 hours");
+            CheckIn wrong = record(rest("2025-01-08T02:00:00Z", 20)).entry();
+            service.voidEntry(wrong.id());
+            assertThat(record(rest("2025-01-08T12:00:00Z", 12)).accepted()).isTrue();
+        }
+
+        @Test
+        void holdsAnAmendmentToTheDayWithoutCountingTheOldReading() {
+            restHabit("at least 10 hours");
+            CheckIn first = record(rest("2025-01-08T02:00:00Z", 8)).entry();
+            record(rest("2025-01-08T14:00:00Z", 6));
+            assertThat(service.amend(first.id(), OptionalDouble.of(18)).reading())
+                    .isEqualTo(OptionalDouble.of(18));
+            assertThatThrownBy(() -> service.amend(first.id(), OptionalDouble.of(18.5)))
+                    .hasMessageContaining("takes 2025-01-08 to 24.5 hours");
+        }
+
+        @Test
+        void putsNoCeilingOnAUnitThatIsNotTime() {
+            restHabit("at least 2 litres");
+            assertThat(record(rest("2025-01-08T02:00:00Z", 3000)).accepted()).isTrue();
+            assertThat(record(treadmill().withReading(5000)).accepted()).isTrue();
+        }
+
+        @Test
+        void answersARetryWithTheStoredRowRatherThanRefusingIt() {
+            restHabit("at least 10 hours");
+            RecordCheckInCommand once = rest("2025-01-08T02:00:00Z", 20).withIdempotencyKey("rest-0108-a");
+            CheckIn stored = record(once).entry();
+            RecordResult retry = record(once);
+            assertThat(retry.accepted()).isFalse();
+            assertThat(retry.entry()).isEqualTo(stored);
+        }
     }
 
     @Nested

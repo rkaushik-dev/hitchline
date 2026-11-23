@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 
 /**
  * What a reading is measured in. Each unit keeps readings to a fixed number of decimal places:
@@ -56,6 +57,18 @@ public enum TargetUnit implements WireValue {
     @Override
     public String toString() {
         return wire;
+    }
+
+    /**
+     * The most one day can hold in this unit, for a day of {@code dayMinutes} minutes: the day
+     * itself for minutes and hours, nothing for a unit that is not a length of time.
+     */
+    public OptionalDouble dayCeiling(int dayMinutes) {
+        return switch (this) {
+            case MINUTES -> OptionalDouble.of(dayMinutes);
+            case HOURS -> OptionalDouble.of(dayMinutes / 60.0);
+            default -> OptionalDouble.empty();
+        };
     }
 
     /** How many decimal places a reading in this unit is kept to. */

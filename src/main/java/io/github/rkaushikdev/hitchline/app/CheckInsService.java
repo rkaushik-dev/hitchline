@@ -10,9 +10,13 @@ import io.github.rkaushikdev.hitchline.domain.checkin.CheckInSource;
 import io.github.rkaushikdev.hitchline.domain.checkin.ResolvedCheckIn;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.habit.Habit;
+import io.github.rkaushikdev.hitchline.domain.habit.TargetUnit;
+import io.github.rkaushikdev.hitchline.domain.rotation.RotationDay;
+import io.github.rkaushikdev.hitchline.domain.rotation.Zoning;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import io.github.rkaushikdev.hitchline.domain.time.Zones;
+import io.github.rkaushikdev.hitchline.util.Numbers;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -21,8 +25,10 @@ import java.util.OptionalDouble;
 /**
  * Recording, voiding and amending check ins. A check in may not be dated in the future beyond the
  * clock slack, may not be dated more than {@value #BACKFILL_LIMIT_DAYS} days back unless a
- * supervisor or an import sends it, and must fall on a day its habit was running. A repeated
- * idempotency key answers the check in already stored.
+ * supervisor or an import sends it, and must fall on a day its habit was running. A habit measured
+ * in minutes or hours may not log more on one rotation day than that day is long, which is 23 or
+ * 25 hours on the days the clocks change. A repeated idempotency key answers the check in already
+ * stored.
  */
 public final class CheckInsService {
 
@@ -119,13 +125,14 @@ public final class CheckInsService {
         if (!habit.isRunningOn(onDate)) {
             throw ValidationException.field("at", "falls on a day the habit was not running");
         }
-        if (command.idempotencyKey().isPresent()) {
-            Optional<CheckIn> seen = ports.checkIns().byHabit(habit.id()).stream()
-                    .filter(entry -> entry.idempotencyKey().equals(command.idempotencyKey()))
-                    .findFirst();
-            if (seen.isPresent()) {
-                return new RecordResult(seen.get(), false);
-            }
+        Optional<CheckIn> seen = command.idempotencyKey().flatMap(key -> ports.checkIns().byHabit(habit.id()).stream()
+                .filter(entry -> entry.idempotencyKey().equals(Optional.of(key)))
+                .findFirst());
+        if (seen.isPresent()) {
+            return new RecordResult(seen.get(), false);
+        }
+        if (command.reading().isPresent()) {
+            checkDayCeiling(habit, member, at, command.reading().getAsDouble(), Optional.empty());
         }
         CheckIn entry = CheckIn.builder(
                         Ids.checkInId(ports.ids().next(IdKind.CHECK_IN)), habit.id(), member.id(), at, now, source)
@@ -163,10 +170,50 @@ public final class CheckInsService {
         return voided;
     }
 
+    /** Replaces a reading, held to the same ceiling a new check in is. */
     public CheckIn amend(String id, OptionalDouble reading) {
-        CheckIn amended = loadEntry(id).amendReading(reading);
+        CheckIn entry = loadEntry(id);
+        CheckIn amended = entry.amendReading(reading);
+        if (reading.isPresent()) {
+            Optional<Habit> habit = ports.habits().byId(entry.habitId());
+            Optional<CrewMember> member = ports.members().byId(entry.memberId());
+            if (habit.isPresent() && member.isPresent()) {
+                checkDayCeiling(habit.get(), member.get(), entry.at(), reading.getAsDouble(), Optional.of(id));
+            }
+        }
         ports.checkIns().replace(amended);
         return amended;
+    }
+
+    /**
+     * Refuses a reading that would take the habit's total for the rotation day past the length of
+     * that day on its own clock. {@code replacing} names a check in whose reading is being changed,
+     * so its old reading is not counted against the new one.
+     */
+    private void checkDayCeiling(
+            Habit habit, CrewMember member, Instant at, double reading, Optional<String> replacing) {
+        if (habit.target().isEmpty()) {
+            return;
+        }
+        TargetUnit unit = habit.target().get().unit();
+        RotationDay day = Zoning.rotationDayAt(member, at);
+        OptionalDouble ceiling = unit.dayCeiling(Zones.dayLengthMinutes(day.zone(), day.date()));
+        if (ceiling.isEmpty()) {
+            return;
+        }
+        double already = ResolvedCheckIn.resolveAll(member, ports.checkIns().byHabit(habit.id())).stream()
+                .filter(item -> !item.checkIn().isVoided())
+                .filter(item -> item.day().date().equals(day.date()))
+                .filter(item ->
+                        replacing.map(id -> !id.equals(item.checkIn().id())).orElse(true))
+                .mapToDouble(item -> item.checkIn().reading().orElse(0))
+                .sum();
+        if (unit.round(already + reading) > ceiling.getAsDouble()) {
+            throw ValidationException.field(
+                    "reading",
+                    "takes " + day.date() + " to " + Numbers.format(unit.round(already + reading)) + " " + unit
+                            + ", more than the " + Numbers.format(ceiling.getAsDouble()) + " the day holds");
+        }
     }
 
     public List<ResolvedCheckIn> listFor(String memberId) {

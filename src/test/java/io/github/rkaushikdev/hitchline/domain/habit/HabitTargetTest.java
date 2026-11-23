@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.OptionalDouble;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -53,6 +54,15 @@ class HabitTargetTest {
             assertThat(rest.format()).isEqualTo("at least 10 hours");
             assertThat(rest.isMetBy(9.96)).isTrue();
             assertThat(rest.isMetBy(9.94)).isFalse();
+        }
+
+        @Test
+        void capsTheUnitsOfTimeAtTheLengthOfTheDay() {
+            assertThat(MINUTES.dayCeiling(1440)).isEqualTo(OptionalDouble.of(1440));
+            assertThat(TargetUnit.HOURS.dayCeiling(1380)).isEqualTo(OptionalDouble.of(23));
+            assertThat(TargetUnit.HOURS.dayCeiling(1500)).isEqualTo(OptionalDouble.of(25));
+            assertThat(COUNT.dayCeiling(1440)).isEmpty();
+            assertThat(KILOMETRES.dayCeiling(1440)).isEmpty();
         }
 
         @Test
