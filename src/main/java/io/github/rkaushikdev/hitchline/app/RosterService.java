@@ -1,10 +1,13 @@
 package io.github.rkaushikdev.hitchline.app;
 
+import io.github.rkaushikdev.hitchline.domain.ConflictException;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.adherence.Shield;
 import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
+import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
 import io.github.rkaushikdev.hitchline.domain.rotation.EffectiveRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleSource;
@@ -57,9 +60,26 @@ public final class RosterService {
      * @param role what they are instead
      * @param reason why
      * @param note anything the clerk wrote
+     * @param limits the duty limits the held roster must stay inside, when they are to be checked
      */
     public record HoldCommand(
-            String memberId, String range, DayRole role, OverrideReason reason, Optional<String> note) {}
+            String memberId,
+            String range,
+            DayRole role,
+            OverrideReason reason,
+            Optional<String> note,
+            Optional<DutyLimits> limits) {
+
+        /** A hold that is stored whatever it does to the duty limits. */
+        public HoldCommand(String memberId, String range, DayRole role, OverrideReason reason, Optional<String> note) {
+            this(memberId, range, role, reason, note, Optional.empty());
+        }
+
+        /** The same hold, checked against {@code value}. */
+        public HoldCommand withinLimits(DutyLimits value) {
+            return new HoldCommand(memberId, range, role, reason, note, Optional.of(value));
+        }
+    }
 
     /**
      * Days shielded from scoring.
@@ -107,12 +127,22 @@ public final class RosterService {
         return days;
     }
 
+    /** The trips and breaks of the member's roster touching {@code window} that break {@code limits}. */
+    public List<DutyBreach> dutyBreaches(String memberId, String window, DutyLimits limits) {
+        return limits.check(rosterFor(memberId), DateRange.parse(window));
+    }
+
     /** The hitch {@code date} belongs to. */
     public DateRange hitchOn(String memberId, String date) {
         return loadMember(memberId).rotation().hitchRangeOn(CivilDate.parse(date));
     }
 
-    /** Stores an override, refusing one that covers a day another of the member's entries covers. */
+    /**
+     * Stores an override, refusing one that covers a day another of the member's entries covers.
+     * When the command carries duty limits it also refuses a hold that makes a trip or a break
+     * break them, unless the reason is the weather: nobody can be flown home through a grounded
+     * helicopter, so a weather hold is recorded and the breach shows up on the roster check instead.
+     */
     public RosterOverride hold(HoldCommand command) {
         CrewMember member = loadMember(command.memberId());
         RosterOverride entry = new RosterOverride(
@@ -122,9 +152,23 @@ public final class RosterService {
                 command.reason(),
                 command.note().orElse(""),
                 ports.clock().now());
-        List<RosterOverride> existing = new ArrayList<>(ports.overrides().byMember(member.id()));
-        existing.add(entry);
-        RosterOverride.checkNoClashes(existing);
+        List<RosterOverride> before = ports.overrides().byMember(member.id());
+        List<RosterOverride> after = new ArrayList<>(before);
+        after.add(entry);
+        RosterOverride.checkNoClashes(after);
+        if (command.limits().isPresent() && entry.reason() != OverrideReason.WEATHER) {
+            DutyLimits limits = command.limits().get();
+            // The runs either side of the entry change shape too, so they are read as well.
+            DateRange touched = DateRange.of(
+                    entry.range().from().plusDays(-1), entry.range().to().plusDays(1));
+            List<DutyBreach> already = limits.check(Roster.of(member, before), touched);
+            limits.check(Roster.of(member, after), touched).stream()
+                    .filter(breach -> !already.contains(breach))
+                    .findFirst()
+                    .ifPresent(breach -> {
+                        throw new ConflictException("holding " + entry.range() + " leaves " + breach.describe());
+                    });
+        }
         ports.overrides().add(entry);
         ports.events()
                 .ifPresent(bus -> bus.publish(

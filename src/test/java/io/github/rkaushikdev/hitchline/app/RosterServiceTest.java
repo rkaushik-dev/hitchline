@@ -14,6 +14,9 @@ import io.github.rkaushikdev.hitchline.domain.adherence.Shield;
 import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
+import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
+import io.github.rkaushikdev.hitchline.domain.rotation.DutyRule;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleSource;
 import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
@@ -97,6 +100,65 @@ class RosterServiceTest {
         @Test
         void findsTheHitchADateSitsIn() {
             assertThat(service.hitchOn(ADA, "2025-01-30").toString()).isEqualTo("2025-01-06..2025-02-02");
+        }
+    }
+
+    @Nested
+    class HoldingWithinTheDutyLimits {
+
+        private HoldCommand checked(String range, DayRole role, OverrideReason reason) {
+            return hold(range, role, reason).withinLimits(DutyLimits.DEFAULT);
+        }
+
+        @Test
+        void refusesAHoldThatRunsATripPastTwentyOneDays() {
+            assertThatThrownBy(() ->
+                            service.hold(checked("2025-01-20..2025-01-27", DayRole.ONSHIFT, OverrideReason.HELD_OVER)))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("holding 2025-01-20..2025-01-27 leaves long_trip 2025-01-06..2025-01-27: 22 days away,"
+                            + " limit 21");
+            assertThat(store.overrides().byMember(ADA)).isEmpty();
+        }
+
+        @Test
+        void refusesACallOutThatCutsTheBreakShort() {
+            assertThatThrownBy(() ->
+                            service.hold(checked("2025-01-24..2025-02-02", DayRole.ONSHIFT, OverrideReason.CALLED_OUT)))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("short_break 2025-01-20..2025-01-23: 4 days at home");
+            service.hold(checked("2025-01-30..2025-02-02", DayRole.ONSHIFT, OverrideReason.CALLED_OUT));
+            assertThat(store.overrides().byMember(ADA)).hasSize(1);
+        }
+
+        @Test
+        void storesAHoldThatStaysInside() {
+            service.hold(checked("2025-01-20..2025-01-24", DayRole.ONSHIFT, OverrideReason.HELD_OVER));
+            assertThat(store.overrides().byMember(ADA)).hasSize(1);
+        }
+
+        @Test
+        void letsTheWeatherHoldSomebodyPastTheLimit() {
+            service.hold(checked("2025-01-20..2025-01-27", DayRole.ONSHIFT, OverrideReason.WEATHER));
+            assertThat(service.dutyBreaches(ADA, "2025-01-06..2025-02-02", DutyLimits.DEFAULT))
+                    .extracting(DutyBreach::rule)
+                    .containsExactly(DutyRule.LONG_TRIP, DutyRule.SHORT_BREAK);
+        }
+
+        @Test
+        void doesNotHoldABreachAlreadyOnTheRosterAgainstANewEntry() {
+            service.hold(checked("2025-01-20..2025-01-27", DayRole.ONSHIFT, OverrideReason.WEATHER));
+            service.hold(checked("2025-01-10..2025-01-10", DayRole.TRAVEL, OverrideReason.SWAPPED));
+            assertThat(store.overrides().byMember(ADA)).hasSize(2);
+            assertThatThrownBy(() ->
+                            service.hold(checked("2025-01-28..2025-01-28", DayRole.ONSHIFT, OverrideReason.HELD_OVER)))
+                    .hasMessageContaining("23 days away");
+            assertThat(store.overrides().byMember(ADA)).hasSize(2);
+        }
+
+        @Test
+        void storesAnythingWhenNoLimitsAreGiven() {
+            service.hold(hold("2025-01-20..2025-02-02", DayRole.ONSHIFT, OverrideReason.HELD_OVER));
+            assertThat(store.overrides().byMember(ADA)).hasSize(1);
         }
     }
 

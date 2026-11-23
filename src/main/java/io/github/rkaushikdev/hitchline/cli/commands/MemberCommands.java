@@ -10,6 +10,8 @@ import io.github.rkaushikdev.hitchline.domain.IdKind;
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
+import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.rotation.RosterOverride;
 import io.github.rkaushikdev.hitchline.domain.rotation.RotationAssignment;
@@ -132,21 +134,51 @@ public final class MemberCommands {
                 description = "window such as 2025-01-06..2025-01-19")
         private String window;
 
+        @Option(names = "--check", description = "check the trips and breaks against the duty limits")
+        private boolean check;
+
+        @Option(
+                names = "--max-trip",
+                paramLabel = "<days>",
+                description = "the longest a trip may run",
+                defaultValue = "21")
+        private String maxTrip;
+
+        @Option(
+                names = "--min-break",
+                paramLabel = "<days>",
+                description = "the shortest a break at home may be",
+                defaultValue = "7")
+        private String minBreak;
+
         PrintRoster(Supplier<Context> context) {
             super(context);
         }
 
         @Override
         void run(Context ctx) {
-            List<RosterDay> days = new RosterService(ctx.ports()).daysFor(Ids.crewMemberId(memberId), window);
-            List<Column<RosterDay>> columns = List.of(
-                    Column.left("date", day -> day.date().toString()),
-                    Column.left("role", day -> day.role().wire()),
-                    Column.left("from", day -> day.source().wire()),
-                    Column.left("zone", RosterDay::zone));
-            ctx.out(Render.renderTable(days, columns));
+            String id = Ids.crewMemberId(memberId);
+            RosterService roster = new RosterService(ctx.ports());
+            ctx.out(Render.renderTable(roster.daysFor(id, window), DAY_COLUMNS));
+            if (check) {
+                DutyLimits limits = DutyLimits.of(
+                        Arguments.wholeNumber(maxTrip, "maxTripDays", "must be a whole number of days"),
+                        Arguments.wholeNumber(minBreak, "minBreakDays", "must be a whole number of days"));
+                List<DutyBreach> breaches = roster.dutyBreaches(id, window, limits);
+                ctx.out("");
+                if (breaches.isEmpty()) {
+                    ctx.out("within the duty limits");
+                }
+                breaches.forEach(breach -> ctx.out(breach.describe()));
+            }
         }
     }
+
+    private static final List<Column<RosterDay>> DAY_COLUMNS = List.of(
+            Column.left("date", day -> day.date().toString()),
+            Column.left("role", day -> day.role().wire()),
+            Column.left("from", day -> day.source().wire()),
+            Column.left("zone", RosterDay::zone));
 
     @Command(name = "hold", description = "hold somebody over or send them home", showDefaultValues = true)
     static final class HoldRoster extends ContextCommand {
@@ -174,18 +206,22 @@ public final class MemberCommands {
                 defaultValue = "")
         private String note;
 
+        @Option(names = "--past-limits", description = "store the hold even when it runs somebody past the duty limits")
+        private boolean pastLimits;
+
         HoldRoster(Supplier<Context> context) {
             super(context);
         }
 
         @Override
         void run(Context ctx) {
-            HoldCommand command = new HoldCommand(
+            HoldCommand plain = new HoldCommand(
                     Ids.crewMemberId(memberId),
                     window,
                     Arguments.word(DayRole.class, "role", role),
                     Arguments.word(OverrideReason.class, "reason", reason),
                     Optional.of(note));
+            HoldCommand command = pastLimits ? plain : plain.withinLimits(DutyLimits.DEFAULT);
             RosterOverride entry = new RosterService(ctx.ports()).hold(command);
             ctx.out("held " + memberId + " " + window + " as " + entry.role().wire());
         }

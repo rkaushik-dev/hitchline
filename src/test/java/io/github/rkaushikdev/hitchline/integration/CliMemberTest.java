@@ -231,6 +231,32 @@ class CliMemberTest {
         }
 
         @Test
+        void saysWhenTheRosterIsInsideTheDutyLimits() {
+            String id = addAda();
+            run("member", "roster", id, "--window", "2025-01-06..2025-02-02", "--check");
+            assertThat(context.text()).contains("within the duty limits");
+        }
+
+        @Test
+        void listsTheTripsThatRunPastTheDutyLimit() {
+            String id = addAda();
+            run("member", "hold", id, "--window", "2025-01-20..2025-01-27", "--role", "onshift", "--reason", "weather");
+            context.clear();
+            int code = run("member", "roster", id, "--window", "2025-01-06..2025-02-02", "--check");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            assertThat(context.text()).contains("long_trip 2025-01-06..2025-01-27: 22 days away, limit 21");
+        }
+
+        @Test
+        void checksAgainstTheLimitsItIsGiven() {
+            String id = addAda();
+            run("member", "roster", id, "--window", "2025-01-06..2025-01-19", "--check", "--max-trip", "10");
+            assertThat(context.text()).contains("14 days away, limit 10");
+            assertThat(run("member", "roster", id, "--window", "2025-01-06..2025-01-19", "--check", "--max-trip", "0"))
+                    .isEqualTo(Context.EXIT_MISUSED);
+        }
+
+        @Test
         void reportsAMemberItDoesNotHold() {
             int code = run("member", "roster", "mem_9999999999999999", "--window", "2025-01-19..2025-01-21");
             assertThat(code).isEqualTo(Context.EXIT_FAILED);
@@ -256,6 +282,27 @@ class CliMemberTest {
                     "--reason",
                     "held_over");
             assertThat(code).isEqualTo(Context.EXIT_OK);
+            assertThat(store.overrides().byMember(id)).hasSize(1);
+        }
+
+        @Test
+        void refusesAHoldThatRunsATripPastTheDutyLimit() {
+            addAdaOnTheDefaultZones();
+            String id = firstMember();
+            String[] args = {"member", "hold", id, "--window", "2025-01-20..2025-01-27", "--role", "onshift"};
+            int code = run(concat(args, "--reason", "held_over"));
+            assertThat(code).isEqualTo(Context.EXIT_FAILED);
+            assertThat(context.errorText()).contains("22 days away, limit 21");
+            assertThat(store.overrides().byMember(id)).isEmpty();
+        }
+
+        @Test
+        void storesItPastTheLimitWhenTold() {
+            addAdaOnTheDefaultZones();
+            String id = firstMember();
+            String[] args = {"member", "hold", id, "--window", "2025-01-20..2025-01-27", "--role", "onshift"};
+            assertThat(run(concat(args, "--reason", "held_over", "--past-limits")))
+                    .isEqualTo(Context.EXIT_OK);
             assertThat(store.overrides().byMember(id)).hasSize(1);
         }
 
