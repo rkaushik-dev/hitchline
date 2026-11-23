@@ -224,6 +224,28 @@ class AdherenceServiceTest {
     }
 
     @Nested
+    class RepeatedTaps {
+
+        @Test
+        void scoresATapSentTwiceAsOneCheckIn() {
+            store.habits().save(Fixtures.aHabit(o -> o.id("hab_FEDCBA9876543210")
+                    .cadence("2/onshift-day")
+                    .startsOn("2025-01-06")));
+            String twice = Ids.habitId("hab_FEDCBA9876543210");
+            checkIns.record(RecordCheckInCommand.of(twice).withAt("2025-01-08T09:00:00Z"));
+            checkIns.record(RecordCheckInCommand.of(twice).withAt("2025-01-08T09:00:40Z"));
+            List<ObligationResult> day = service.report(ADA, "2025-01-08..2025-01-08").results().stream()
+                    .filter(result -> result.obligation().habitId().equals(twice))
+                    .toList();
+            assertThat(day.get(0).count()).isEqualTo(1);
+            assertThat(day.get(0).status()).isEqualTo(AdherenceStatus.PARTIAL);
+            checkIns.record(RecordCheckInCommand.of(twice).withAt("2025-01-08T19:00:00Z"));
+            assertThat(service.report(ADA, "2025-01-08..2025-01-08").summary().met())
+                    .isEqualTo(1);
+        }
+    }
+
+    @Nested
     class Streaks {
 
         @Test

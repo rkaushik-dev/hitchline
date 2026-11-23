@@ -17,8 +17,9 @@ import java.util.List;
 /**
  * Loads one member whole and scores their habits. Three services used to assemble this for
  * themselves and they drifted: the nudge planner counted voided check ins for a fortnight because
- * only two of the three copies filtered them out. Scoring prorates anything measured over several
- * days around the member's shields, so every report asks for the same reduced count.
+ * only two of the three copies filtered them out. A tap repeated within two minutes is counted
+ * once here, and scoring prorates anything measured over several days around the member's
+ * shields, so every report asks for the same reduced count.
  */
 public final class MemberLoader {
 
@@ -32,12 +33,13 @@ public final class MemberLoader {
         CrewMember member =
                 ports.members().byId(memberId).orElseThrow(() -> new NotFoundException("crew member", memberId));
         List<CheckIn> live = ports.checkIns().byMember(memberId).stream()
-                .filter(entry -> entry.voidedAt().isEmpty())
+                .filter(entry -> !entry.isVoided())
                 .toList();
+        List<ResolvedCheckIn> counted = ResolvedCheckIn.withoutRepeatTaps(ResolvedCheckIn.resolveAll(member, live));
         return new LoadedMember(
                 Roster.of(member, ports.overrides().byMember(memberId)),
                 ports.habits().byMember(memberId),
-                ResolvedCheckIn.resolveAll(member, live),
+                counted,
                 ports.shields().byMember(memberId),
                 Zones.civilDateIn(member.siteZone(), ports.clock().now()));
     }

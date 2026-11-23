@@ -200,6 +200,19 @@ class CliHabitTest {
         }
 
         @Test
+        void marksATapRepeatedInsideTwoMinutesAsNotCounted() {
+            String id = addHabit();
+            run("checkin", "record", id, "--at", "2025-01-08T07:00:00Z");
+            run("checkin", "record", id, "--at", "2025-01-08T07:01:00Z");
+            context.clear();
+            run("checkin", "list", ADA);
+            List<String> lines = lines();
+            assertThat(lines.get(0)).contains("counted");
+            assertThat(lines.get(2)).endsWith("yes");
+            assertThat(lines.get(3)).endsWith("repeat");
+        }
+
+        @Test
         void narrowsToAWindow() {
             String id = addHabit();
             run("checkin", "record", id, "--at", "2025-01-08T07:00:00Z");

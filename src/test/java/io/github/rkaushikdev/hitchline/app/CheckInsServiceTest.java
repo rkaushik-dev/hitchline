@@ -113,6 +113,15 @@ class CheckInsServiceTest {
         }
 
         @Test
+        void letsARepeatedTapThroughWithoutCountingIt() {
+            restHabit("at least 10 hours");
+            record(rest("2025-01-08T02:00:00Z", 14));
+            assertThat(record(rest("2025-01-08T02:01:00Z", 14)).accepted()).isTrue();
+            assertThat(record(rest("2025-01-08T12:00:00Z", 10)).accepted()).isTrue();
+            assertThatThrownBy(() -> record(rest("2025-01-08T18:00:00Z", 0.5))).hasMessageContaining("to 24.5 hours");
+        }
+
+        @Test
         void answersARetryWithTheStoredRowRatherThanRefusingIt() {
             restHabit("at least 10 hours");
             RecordCheckInCommand once = rest("2025-01-08T02:00:00Z", 20).withIdempotencyKey("rest-0108-a");

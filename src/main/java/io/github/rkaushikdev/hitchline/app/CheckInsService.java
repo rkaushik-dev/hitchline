@@ -188,7 +188,8 @@ public final class CheckInsService {
     /**
      * Refuses a reading that would take the habit's total for the rotation day past the length of
      * that day on its own clock. {@code replacing} names a check in whose reading is being changed,
-     * so its old reading is not counted against the new one.
+     * so its old reading is not counted against the new one. A repeated tap is let through, since
+     * it will not be counted, and repeats already stored are left out of the total.
      */
     private void checkDayCeiling(
             Habit habit, CrewMember member, Instant at, double reading, Optional<String> replacing) {
@@ -201,11 +202,20 @@ public final class CheckInsService {
         if (ceiling.isEmpty()) {
             return;
         }
-        double already = ResolvedCheckIn.resolveAll(member, ports.checkIns().byHabit(habit.id())).stream()
-                .filter(item -> !item.checkIn().isVoided())
+        List<CheckIn> live = ports.checkIns().byHabit(habit.id()).stream()
+                .filter(entry -> !entry.isVoided())
+                .filter(entry -> replacing.map(id -> !id.equals(entry.id())).orElse(true))
+                .toList();
+        boolean repeat = replacing.isEmpty()
+                && live.stream()
+                        .anyMatch(entry ->
+                                Math.abs(entry.at().toEpochMilli() - at.toEpochMilli()) <= ResolvedCheckIn.REPEAT_TAP_MS
+                                        && entry.reading().equals(OptionalDouble.of(reading)));
+        if (repeat) {
+            return;
+        }
+        double already = ResolvedCheckIn.withoutRepeatTaps(ResolvedCheckIn.resolveAll(member, live)).stream()
                 .filter(item -> item.day().date().equals(day.date()))
-                .filter(item ->
-                        replacing.map(id -> !id.equals(item.checkIn().id())).orElse(true))
                 .mapToDouble(item -> item.checkIn().reading().orElse(0))
                 .sum();
         if (unit.round(already + reading) > ceiling.getAsDouble()) {

@@ -70,6 +70,62 @@ class ResolvedCheckInTest {
     }
 
     @Nested
+    class RepeatTaps {
+
+        private List<ResolvedCheckIn> resolve(CheckIn... entries) {
+            return ResolvedCheckIn.resolveAll(MEMBER, List.of(entries));
+        }
+
+        @Test
+        void countsTheSameTapTwiceInsideTwoMinutesOnce() {
+            CheckIn first = at("2025-01-08T07:00:00Z");
+            CheckIn again = at("2025-01-08T07:01:30Z");
+            List<ResolvedCheckIn> resolved = resolve(again, first);
+            assertThat(ResolvedCheckIn.repeatTaps(resolved)).containsExactly(again.id());
+            assertThat(ResolvedCheckIn.withoutRepeatTaps(resolved))
+                    .extracting(ResolvedCheckIn::checkIn)
+                    .containsExactly(first);
+        }
+
+        @Test
+        void keepsATapMoreThanTwoMinutesLater() {
+            List<ResolvedCheckIn> resolved = resolve(at("2025-01-08T07:00:00Z"), at("2025-01-08T07:02:01Z"));
+            assertThat(ResolvedCheckIn.repeatTaps(resolved)).isEmpty();
+        }
+
+        @Test
+        void keepsTwoReadingsThatDiffer() {
+            List<ResolvedCheckIn> resolved = resolve(at("2025-01-08T07:00:00Z", 6), at("2025-01-08T07:00:30Z", 2));
+            assertThat(ResolvedCheckIn.withoutRepeatTaps(resolved)).hasSize(2);
+        }
+
+        @Test
+        void measuresFromTheTapCountedSoAStreamOfRepeatsDoesNotCreep() {
+            CheckIn first = at("2025-01-08T07:00:00Z", 8);
+            CheckIn second = at("2025-01-08T07:01:00Z", 8);
+            CheckIn third = at("2025-01-08T07:02:00Z", 8);
+            CheckIn fourth = at("2025-01-08T07:03:00Z", 8);
+            assertThat(ResolvedCheckIn.repeatTaps(resolve(first, second, third, fourth)))
+                    .containsExactlyInAnyOrder(second.id(), third.id());
+        }
+
+        @Test
+        void keepsTapsOnTwoHabitsApart() {
+            CheckIn treadmill = at("2025-01-08T07:00:00Z");
+            CheckIn stretches = CheckIn.builder(
+                            Ids.checkInId("chk_FFFFFFFFFFFFFFFF"),
+                            Ids.habitId("hab_FEDCBA9876543210"),
+                            treadmill.memberId(),
+                            treadmill.at(),
+                            treadmill.at(),
+                            CheckInSource.WATCH)
+                    .build();
+            assertThat(ResolvedCheckIn.repeatTaps(resolve(treadmill, stretches)))
+                    .isEmpty();
+        }
+    }
+
+    @Nested
     class Grouping {
 
         private final List<ResolvedCheckIn> resolved = ResolvedCheckIn.resolveAll(

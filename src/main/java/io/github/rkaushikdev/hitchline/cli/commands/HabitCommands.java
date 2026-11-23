@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.function.Supplier;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -228,17 +229,22 @@ public final class HabitCommands {
 
         @Override
         void run(Context ctx) {
-            List<ResolvedCheckIn> found = new CheckInsService(ctx.ports())
-                    .listFor(
-                            Ids.crewMemberId(memberId),
-                            Optional.ofNullable(window).map(DateRange::parse));
-            List<Column<ResolvedCheckIn>> columns = List.of(
+            Optional<DateRange> narrowed = Optional.ofNullable(window).map(DateRange::parse);
+            List<ResolvedCheckIn> found =
+                    new CheckInsService(ctx.ports()).listFor(Ids.crewMemberId(memberId), narrowed);
+            Set<String> repeats = ResolvedCheckIn.repeatTaps(found);
+            ctx.out(Render.renderTable(found, columns(repeats)));
+        }
+
+        /** The listing, with a tap repeated within two minutes marked as not counted. */
+        private static List<Column<ResolvedCheckIn>> columns(Set<String> repeats) {
+            return List.of(
                     Column.left("id", row -> row.checkIn().id()),
                     Column.left("day", row -> row.day().date().toString()),
                     Column.left("role", row -> row.day().role().wire()),
                     Column.right("reading", row -> readingOf(row.checkIn())),
-                    Column.left("source", row -> row.checkIn().source().wire()));
-            ctx.out(Render.renderTable(found, columns));
+                    Column.left("source", row -> row.checkIn().source().wire()),
+                    Column.left("counted", row -> repeats.contains(row.checkIn().id()) ? "repeat" : "yes"));
         }
 
         private static String readingOf(CheckIn entry) {
