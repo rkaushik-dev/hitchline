@@ -42,10 +42,10 @@ public record HabitTemplate(
                     .note("the sheet posted at the start of shift")
                     .build(),
             builder("rest-hours", "Log the rest hours", "1/day")
-                    .target("at least 11 count")
+                    .target("at least 10 hours")
                     .tags("rest", "compliance")
                     .graceDays(1)
-                    .note("hours away from work in the day, as the rest rules count them")
+                    .note("hours of rest in the day; the rules ask for 10 in any 24 and 77 in any seven days")
                     .build(),
             builder("gym-session", "Twenty minutes in the gym", "3/hitch")
                     .target("at least 20 minutes")

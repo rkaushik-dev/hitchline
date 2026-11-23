@@ -415,6 +415,14 @@ class ApiTest {
         }
 
         @Test
+        void asksForTheRestHoursInHours() {
+            Reply response = call(
+                    "POST", "/habits/from-template", ADA_TOKEN.token(), body("memberId", ADA, "key", "rest-hours"));
+            assertThat(response.json().get("target").asText()).isEqualTo("at least 10 hours");
+            assertThat(response.json().get("cadence").asText()).isEqualTo("1/day");
+        }
+
+        @Test
         void answers404ForATemplateItDoesNotHave() {
             Reply response = call(
                     "POST", "/habits/from-template", ADA_TOKEN.token(), body("memberId", ADA, "key", "nothing-here"));

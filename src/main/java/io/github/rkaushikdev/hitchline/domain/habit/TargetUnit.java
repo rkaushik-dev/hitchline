@@ -5,6 +5,7 @@ import io.github.rkaushikdev.hitchline.util.Numbers;
 import io.github.rkaushikdev.hitchline.util.Texts;
 import io.github.rkaushikdev.hitchline.util.WireValue;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -12,36 +13,39 @@ import java.util.Optional;
 
 /**
  * What a reading is measured in. Each unit keeps readings to a fixed number of decimal places:
- * none for counts, minutes, grams and pages, two for kilometres and litres.
+ * none for counts, minutes, grams and pages, one for hours, two for kilometres and litres. Hours
+ * are kept to the tenth because rest hours are logged in half hours and quarter hours, and
+ * rounding them to the hour would move somebody across the ten hour line either way.
  */
 public enum TargetUnit implements WireValue {
-    COUNT("count", 0),
-    MINUTES("minutes", 0),
-    KILOMETRES("kilometres", 2),
-    LITRES("litres", 2),
-    GRAMS("grams", 0),
+    COUNT("count", 0, "times"),
+    MINUTES("minutes", 0, "min", "mins"),
+    HOURS("hours", 1, "h", "hr", "hrs", "hour"),
+    KILOMETRES("kilometres", 2, "km"),
+    LITRES("litres", 2, "l"),
+    GRAMS("grams", 0, "g"),
     PAGES("pages", 0);
 
-    private static final Map<String, TargetUnit> ALIASES = Map.ofEntries(
-            Map.entry("count", COUNT),
-            Map.entry("times", COUNT),
-            Map.entry("min", MINUTES),
-            Map.entry("mins", MINUTES),
-            Map.entry("minutes", MINUTES),
-            Map.entry("km", KILOMETRES),
-            Map.entry("kilometres", KILOMETRES),
-            Map.entry("l", LITRES),
-            Map.entry("litres", LITRES),
-            Map.entry("g", GRAMS),
-            Map.entry("grams", GRAMS),
-            Map.entry("pages", PAGES));
+    private static final Map<String, TargetUnit> ALIASES = aliases();
 
     private final String wire;
     private final int places;
+    private final List<String> shortWords;
 
-    TargetUnit(String wire, int places) {
+    TargetUnit(String wire, int places, String... shortWords) {
         this.wire = wire;
         this.places = places;
+        this.shortWords = List.of(shortWords);
+    }
+
+    /** Every word a unit answers to: its own name and the short words people type for it. */
+    private static Map<String, TargetUnit> aliases() {
+        Map<String, TargetUnit> words = new HashMap<>();
+        for (TargetUnit unit : values()) {
+            words.put(unit.wire, unit);
+            unit.shortWords.forEach(word -> words.put(word, unit));
+        }
+        return Map.copyOf(words);
     }
 
     @Override

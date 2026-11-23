@@ -82,6 +82,14 @@ class HabitTemplateTest {
         void givesTheRestHoursADayOfGrace() {
             assertThat(standard("rest-hours").graceDays()).isEqualTo(1);
         }
+
+        @Test
+        void asksForTenHoursOfRestADay() {
+            HabitTarget rest = standard("rest-hours").target().orElseThrow();
+            assertThat(rest.unit()).isEqualTo(TargetUnit.HOURS);
+            assertThat(rest.amount()).isEqualTo(10.0);
+            assertThat(rest.comparison()).isEqualTo(TargetComparison.AT_LEAST);
+        }
     }
 
     @Nested

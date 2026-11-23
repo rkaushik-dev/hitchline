@@ -31,6 +31,38 @@ class HabitTargetTest {
         }
 
         @Test
+        void readsHoursUnderEveryShortWord() {
+            for (String word : List.of("h", "hr", "hrs", "hour", "hours", " HOURS ")) {
+                assertThat(TargetUnit.unitFor(word)).as(word).isEqualTo(TargetUnit.HOURS);
+            }
+            assertThat(TargetUnit.fromWire("hours")).contains(TargetUnit.HOURS);
+        }
+
+        @Test
+        void keepsHoursToTheTenth() {
+            assertThat(TargetUnit.HOURS.places()).isEqualTo(1);
+            assertThat(TargetUnit.HOURS.round(9.94)).isEqualTo(9.9);
+            assertThat(TargetUnit.HOURS.round(9.95)).isEqualTo(10.0);
+            assertThat(TargetUnit.HOURS.sum(List.of(4.25, 5.5))).isEqualTo(9.8);
+        }
+
+        @Test
+        void readsATargetInHours() {
+            HabitTarget rest = HabitTarget.parse("at least 10h");
+            assertThat(rest.unit()).isEqualTo(TargetUnit.HOURS);
+            assertThat(rest.format()).isEqualTo("at least 10 hours");
+            assertThat(rest.isMetBy(9.96)).isTrue();
+            assertThat(rest.isMetBy(9.94)).isFalse();
+        }
+
+        @Test
+        void answersEveryUnitByItsOwnName() {
+            for (TargetUnit unit : TargetUnit.values()) {
+                assertThat(TargetUnit.unitFor(unit.wire())).isEqualTo(unit);
+            }
+        }
+
+        @Test
         void refusesAUnitItDoesNotTrack() {
             assertThatThrownBy(() -> TargetUnit.unitFor("furlongs")).hasMessageContaining("not a unit this tracks");
         }
