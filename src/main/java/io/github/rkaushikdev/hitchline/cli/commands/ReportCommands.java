@@ -9,6 +9,8 @@ import io.github.rkaushikdev.hitchline.cli.Render;
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
+import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
+import io.github.rkaushikdev.hitchline.domain.adherence.RestHoursRule;
 import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.nudge.PlannedNudge;
@@ -62,25 +64,23 @@ public final class ReportCommands {
         @Option(names = "--shape", description = "show the role split, the trend and the busiest hour")
         private boolean shape;
 
+        @Option(
+                names = "--rest-hours",
+                paramLabel = "<habitId>",
+                description = "check a rest log against 10 hours a day and 77 a week")
+        private String restHours;
+
         ReportAdherence(Supplier<Context> context) {
             super(context);
         }
 
         @Override
         void run(Context ctx) {
-            AdherenceReport report = new AdherenceService(ctx.ports()).report(Ids.crewMemberId(memberId), window);
-            PeriodSummary summary = report.summary();
+            String id = Ids.crewMemberId(memberId);
+            AdherenceService service = new AdherenceService(ctx.ports());
+            AdherenceReport report = service.report(id, window);
             ctx.out(Render.heading("adherence for " + memberId));
-            ctx.out(Render.keyValues(List.of(
-                    Map.entry("window", report.window().toString()),
-                    Map.entry("as of", report.asOf().toString()),
-                    Map.entry("owed", Integer.toString(summary.owed())),
-                    Map.entry("met", Integer.toString(summary.met())),
-                    Map.entry("partial", Integer.toString(summary.partial())),
-                    Map.entry("missed", Integer.toString(summary.missed())),
-                    Map.entry("pending", Integer.toString(summary.pending())),
-                    Map.entry("shielded", Render.pluralise(summary.shieldedDays(), "day")),
-                    Map.entry("rate", Render.bar(summary.rate()) + " " + Render.percent(summary.rate())))));
+            ctx.out(Render.keyValues(summaryLines(report)));
             if (byHitch) {
                 ctx.out("");
                 ctx.out(Render.renderTable(report.byHitch(), summaryColumns()));
@@ -89,12 +89,36 @@ public final class ReportCommands {
                 ctx.out("");
                 ctx.out(Render.renderTable(report.byRole(), roleColumns()));
                 ctx.out("");
-                String busiest = report.busiestHour().isPresent()
-                        ? Texts.padStart(Integer.toString(report.busiestHour().getAsInt()), 2, '0') + ":00"
-                        : "nothing recorded";
-                ctx.out(Render.keyValues(
-                        List.of(Map.entry("trend", report.trend().describe()), Map.entry("busiest hour", busiest))));
+                ctx.out(Render.keyValues(shapeLines(report)));
             }
+            if (restHours != null) {
+                List<RestBreach> breaches =
+                        service.restHours(id, Ids.habitId(restHours), window, RestHoursRule.DEFAULT);
+                ctx.out("");
+                ctx.out(breaches.isEmpty() ? "inside the rest hour rules" : "rest hour breaches");
+                breaches.forEach(breach -> ctx.out(breach.describe()));
+            }
+        }
+
+        private static List<Map.Entry<String, String>> summaryLines(AdherenceReport report) {
+            PeriodSummary summary = report.summary();
+            return List.of(
+                    Map.entry("window", report.window().toString()),
+                    Map.entry("as of", report.asOf().toString()),
+                    Map.entry("owed", Integer.toString(summary.owed())),
+                    Map.entry("met", Integer.toString(summary.met())),
+                    Map.entry("partial", Integer.toString(summary.partial())),
+                    Map.entry("missed", Integer.toString(summary.missed())),
+                    Map.entry("pending", Integer.toString(summary.pending())),
+                    Map.entry("shielded", Render.pluralise(summary.shieldedDays(), "day")),
+                    Map.entry("rate", Render.bar(summary.rate()) + " " + Render.percent(summary.rate())));
+        }
+
+        private static List<Map.Entry<String, String>> shapeLines(AdherenceReport report) {
+            String busiest = report.busiestHour().isPresent()
+                    ? Texts.padStart(Integer.toString(report.busiestHour().getAsInt()), 2, '0') + ":00"
+                    : "nothing recorded";
+            return List.of(Map.entry("trend", report.trend().describe()), Map.entry("busiest hour", busiest));
         }
     }
 

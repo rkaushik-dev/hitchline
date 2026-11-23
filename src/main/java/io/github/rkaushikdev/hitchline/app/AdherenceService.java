@@ -1,16 +1,22 @@
 package io.github.rkaushikdev.hitchline.app;
 
+import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus;
 import io.github.rkaushikdev.hitchline.domain.adherence.Analytics;
 import io.github.rkaushikdev.hitchline.domain.adherence.HabitSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.HourBucket;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
+import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
+import io.github.rkaushikdev.hitchline.domain.adherence.RestHoursRule;
 import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
 import io.github.rkaushikdev.hitchline.domain.adherence.Shield;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.SummaryRequest;
 import io.github.rkaushikdev.hitchline.domain.adherence.Trend;
+import io.github.rkaushikdev.hitchline.domain.checkin.ResolvedCheckIn;
+import io.github.rkaushikdev.hitchline.domain.habit.Habit;
+import io.github.rkaushikdev.hitchline.domain.habit.TargetUnit;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import java.util.List;
@@ -88,6 +94,23 @@ public final class AdherenceService {
         LoadedMember loaded = loader.load(memberId);
         List<ObligationResult> results = loader.scoreOne(loaded, loaded.habitOf(habitId), range);
         return StreakSummary.compute(results, loaded.shields(), memberId);
+    }
+
+    /**
+     * The breaches of the rest hour rules in a window, read from a habit that logs rest in hours.
+     * A habit measured in anything else is refused, because a count of seven is not seven hours.
+     */
+    public List<RestBreach> restHours(String memberId, String habitId, String window, RestHoursRule rule) {
+        DateRange range = DateRange.parse(window);
+        LoadedMember loaded = loader.load(memberId);
+        Habit habit = loaded.habitOf(habitId);
+        if (habit.target().map(target -> target.unit() != TargetUnit.HOURS).orElse(true)) {
+            throw ValidationException.field("habitId", "does not log rest in hours: " + habit.name());
+        }
+        List<ResolvedCheckIn> logged = loaded.resolved().stream()
+                .filter(item -> item.checkIn().habitId().equals(habitId))
+                .toList();
+        return rule.check(logged, range);
     }
 
     /** What is still open in a window and not yet done enough times, less anything a shield excuses. */

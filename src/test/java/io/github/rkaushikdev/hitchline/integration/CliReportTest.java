@@ -87,6 +87,48 @@ class CliReportTest {
         }
 
         @Test
+        void checksARestLogAgainstTheRestHourRules() {
+            store.habits().save(Fixtures.aHabit(o -> o.id("hab_FEDCBA9876543210")
+                    .cadence("1/day")
+                    .target("at least 10 hours")
+                    .startsOn("2025-01-06")));
+            new CheckInsService(store)
+                    .record(RecordCheckInCommand.of(Ids.habitId("hab_FEDCBA9876543210"))
+                            .withAt("2025-01-08T05:00:00Z")
+                            .withReading(9));
+            context.clear();
+            int code = run(
+                    "report",
+                    "adherence",
+                    ADA,
+                    "--window",
+                    "2025-01-06..2025-01-12",
+                    "--rest-hours",
+                    "hab_FEDCBA9876543210");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            assertThat(context.text()).contains("short_day 2025-01-08..2025-01-08: 9 hours in 1 period");
+        }
+
+        @Test
+        void saysWhenARestLogIsInsideTheRules() {
+            run("report", "adherence", ADA, "--window", "2025-01-06..2025-01-12", "--rest-hours", TREADMILL);
+            assertThat(context.errorText()).contains("does not log rest in hours");
+            store.habits().save(Fixtures.aHabit(o -> o.id("hab_FEDCBA9876543210")
+                    .target("at least 10 hours")
+                    .startsOn("2025-01-06")));
+            context.clear();
+            run(
+                    "report",
+                    "adherence",
+                    ADA,
+                    "--window",
+                    "2025-01-06..2025-01-12",
+                    "--rest-hours",
+                    "hab_FEDCBA9876543210");
+            assertThat(context.text()).contains("inside the rest hour rules");
+        }
+
+        @Test
         void refusesAWindowItCannotRead() {
             assertThat(run("report", "adherence", ADA, "--window", "january")).isEqualTo(Context.EXIT_MISUSED);
         }

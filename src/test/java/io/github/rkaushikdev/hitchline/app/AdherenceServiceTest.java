@@ -12,6 +12,9 @@ import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
+import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
+import io.github.rkaushikdev.hitchline.domain.adherence.RestHoursRule;
+import io.github.rkaushikdev.hitchline.domain.adherence.RestRule;
 import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
 import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
@@ -175,6 +178,48 @@ class AdherenceServiceTest {
             shieldLeave();
             assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().shieldedDays())
                     .isEqualTo(3);
+        }
+    }
+
+    @Nested
+    class RestHours {
+
+        private static final String REST = Ids.habitId("hab_FEDCBA9876543210");
+
+        @BeforeEach
+        void addARestLog() {
+            store.habits().save(Fixtures.aHabit(o -> o.id("hab_FEDCBA9876543210")
+                    .name("Log the rest hours")
+                    .cadence("1/day")
+                    .target("at least 10 hours")
+                    .startsOn("2025-01-06")));
+        }
+
+        private void logRest(String at, double hours) {
+            checkIns.record(RecordCheckInCommand.of(REST).withAt(at).withReading(hours));
+        }
+
+        @Test
+        void listsTheDaysThatBreakTheRules() {
+            logRest("2025-01-14T05:00:00Z", 6);
+            logRest("2025-01-14T18:00:00Z", 2);
+            logRest("2025-01-15T05:00:00Z", 11);
+            List<RestBreach> breaches = service.restHours(ADA, REST, "2025-01-13..2025-01-19", RestHoursRule.DEFAULT);
+            assertThat(breaches).extracting(RestBreach::rule).containsExactly(RestRule.SHORT_DAY);
+            assertThat(breaches.get(0).range().from().toString()).isEqualTo("2025-01-14");
+        }
+
+        @Test
+        void readsOnlyTheRestHabitsOwnLog() {
+            checkInOn("2025-01-14");
+            assertThat(service.restHours(ADA, REST, "2025-01-13..2025-01-19", RestHoursRule.DEFAULT))
+                    .isEmpty();
+        }
+
+        @Test
+        void refusesAHabitThatDoesNotLogHours() {
+            assertThatThrownBy(() -> service.restHours(ADA, TREADMILL, "2025-01-13..2025-01-19", RestHoursRule.DEFAULT))
+                    .hasMessageContaining("does not log rest in hours");
         }
     }
 
