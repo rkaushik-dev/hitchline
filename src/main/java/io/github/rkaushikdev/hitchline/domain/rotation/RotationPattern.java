@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,15 +32,6 @@ public final class RotationPattern {
     private static final Pattern SHORTHAND = Pattern.compile("(\\d+)/(\\d+)");
     private static final Pattern TOKEN_GAP = Pattern.compile("(?:" + Texts.SPACE_CLASS + "|,)+");
     private static final int MAX_CYCLE_DAYS = 366;
-
-    /** The classic swing rota: two on, two off, three on, then the mirror of it. */
-    private static final List<RotationSegment> PANAMA = List.of(
-            new RotationSegment(DayRole.ONSHIFT, 2),
-            new RotationSegment(DayRole.OFFSHIFT, 2),
-            new RotationSegment(DayRole.ONSHIFT, 3),
-            new RotationSegment(DayRole.OFFSHIFT, 2),
-            new RotationSegment(DayRole.ONSHIFT, 2),
-            new RotationSegment(DayRole.OFFSHIFT, 3));
 
     private final List<RotationSegment> segments;
     private final List<DayRole> cycle;
@@ -125,16 +117,18 @@ public final class RotationPattern {
     }
 
     /**
-     * Reads the ways people actually write a rota down: "14/14" for a fortnight each way, "2-2-3"
-     * for the swing pattern, or an explicit run of segments such as "1travel 13on 1travel 13off".
+     * Reads the ways people actually write a rota down: "14/14" for a fortnight each way, the name
+     * of a rota such as "2-2-3" or "DuPont", or an explicit run of segments such as "1travel 13on
+     * 1travel 13off".
      */
     public static RotationPattern parse(String text) {
         String trimmed = Texts.trim(text).toLowerCase(Locale.ROOT);
         if (trimmed.isEmpty()) {
             throw ValidationException.field("pattern", "is empty");
         }
-        if (trimmed.equals("2-2-3")) {
-            return of(PANAMA);
+        Optional<NamedRota> named = NamedRota.named(trimmed);
+        if (named.isPresent()) {
+            return named.get().pattern();
         }
         Matcher shorthand = SHORTHAND.matcher(trimmed);
         if (shorthand.matches()) {
@@ -166,6 +160,11 @@ public final class RotationPattern {
             case TRAVEL -> "travel";
             case STANDBY -> "standby";
         };
+    }
+
+    /** The name a crewing office would give this cycle, when it is one of the named rotas. */
+    public Optional<String> knownAs() {
+        return NamedRota.matching(this).map(NamedRota::label);
     }
 
     public List<RotationSegment> segments() {

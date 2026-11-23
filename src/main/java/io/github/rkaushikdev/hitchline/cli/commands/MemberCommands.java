@@ -107,9 +107,16 @@ public final class MemberCommands {
                     Column.left("id", CrewMember::id),
                     Column.left("name", CrewMember::displayName),
                     Column.left("site", CrewMember::siteZone),
+                    Column.left("rota", MemberCommands::rotaOf),
                     Column.left("status", row -> row.status().wire()));
             ctx.out(Render.renderTable(ctx.ports().members().all(), columns));
         }
+    }
+
+    /** The rota by the name the crewing office uses, or written out when it has none. */
+    static String rotaOf(CrewMember member) {
+        RotationPattern pattern = member.rotation().pattern();
+        return pattern.knownAs().orElseGet(pattern::format);
     }
 
     @Command(name = "roster", description = "print the roster over a window")

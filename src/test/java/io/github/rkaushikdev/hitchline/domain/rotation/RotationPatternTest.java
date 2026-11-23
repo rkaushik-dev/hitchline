@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,55 @@ class RotationPatternTest {
             assertThat(pattern.cycleLength()).isEqualTo(14);
             assertThat(pattern.countRole(ONSHIFT)).isEqualTo(7);
             assertThat(pattern.cycle().subList(0, 5)).containsExactly(ONSHIFT, ONSHIFT, OFFSHIFT, OFFSHIFT, ONSHIFT);
+        }
+    }
+
+    @Nested
+    class NamedRotas {
+
+        @Test
+        void readsTheSwingPatternUnderEveryNameItGoesBy() {
+            RotationPattern swing = RotationPattern.parse("2-2-3");
+            assertThat(RotationPattern.parse("Panama")).isEqualTo(swing);
+            assertThat(RotationPattern.parse("  PITMAN ")).isEqualTo(swing);
+            assertThat(swing.format()).isEqualTo("2on 2off 3on 2off 2on 3off");
+        }
+
+        @Test
+        void readsTheDuPontCycle() {
+            RotationPattern dupont = RotationPattern.parse("DuPont");
+            assertThat(dupont.cycleLength()).isEqualTo(28);
+            assertThat(dupont.countRole(ONSHIFT)).isEqualTo(14);
+            assertThat(dupont.cycle().subList(21, 28)).containsOnly(OFFSHIFT);
+            assertThat(dupont.segments()).hasSize(8);
+        }
+
+        @Test
+        void treatsSpacesInANameAsHyphens() {
+            assertThat(RotationPattern.parse("equal time")).isEqualTo(RotationPattern.parse("14/14"));
+            assertThat(RotationPattern.parse("Two Three")).isEqualTo(RotationPattern.parse("14/21"));
+            assertThat(RotationPattern.parse("four on four off")).isEqualTo(RotationPattern.parse("4/4"));
+        }
+
+        @Test
+        void saysWhichNamedRotaAPatternIs() {
+            assertThat(RotationPattern.parse("21/21").knownAs()).contains("three-three");
+            assertThat(RotationPattern.parse("2on 2off 3on 2off 2on 3off").knownAs())
+                    .contains("panama");
+            assertThat(RotationPattern.parse("10on 4off").knownAs()).isEmpty();
+        }
+
+        @Test
+        void listsTheUsualNameFirst() {
+            assertThat(NamedRota.PANAMA.label()).isEqualTo("panama");
+            assertThat(NamedRota.PANAMA.names()).contains("2-2-3", "pitman");
+            assertThat(NamedRota.named("nobody's rota")).isEmpty();
+        }
+
+        @Test
+        void givesEveryNamedRotaADistinctCycle() {
+            assertThat(Arrays.stream(NamedRota.values()).map(NamedRota::pattern).distinct())
+                    .hasSize(NamedRota.values().length);
         }
     }
 

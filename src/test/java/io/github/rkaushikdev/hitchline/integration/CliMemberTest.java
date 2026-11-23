@@ -178,6 +178,20 @@ class CliMemberTest {
         }
 
         @Test
+        void namesTheRotaWhenTheCrewingOfficeHasANameForIt() {
+            addAdaOnTheDefaultZones();
+            run("member", "add", "--name", "Bo Lindqvist", "--pattern", "DuPont", "--anchor", "2025-01-06");
+            run("member", "add", "--name", "Cy Moreau", "--pattern", "10on 4off", "--anchor", "2025-01-06");
+            context.clear();
+            run("member", "list");
+            String text = context.text();
+            assertThat(text).contains("rota");
+            assertThat(text).contains("equal-time");
+            assertThat(text).contains("dupont");
+            assertThat(text).contains("10on 4off");
+        }
+
+        @Test
         void printsJustAHeaderWhenTheStoreIsEmpty() {
             run("member", "list");
             assertThat(lines()).hasSize(2);
