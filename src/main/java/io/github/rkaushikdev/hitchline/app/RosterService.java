@@ -9,6 +9,7 @@ import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
 import io.github.rkaushikdev.hitchline.domain.rotation.EffectiveRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.HitchVariance;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleSource;
 import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
@@ -130,6 +131,11 @@ public final class RosterService {
     /** The trips and breaks of the member's roster touching {@code window} that break {@code limits}. */
     public List<DutyBreach> dutyBreaches(String memberId, String window, DutyLimits limits) {
         return limits.check(rosterFor(memberId), DateRange.parse(window));
+    }
+
+    /** Each hitch {@code window} touches, as worked against as rostered. */
+    public List<HitchVariance> variance(String memberId, String window) {
+        return HitchVariance.over(rosterFor(memberId), DateRange.parse(window));
     }
 
     /** The hitch {@code date} belongs to. */

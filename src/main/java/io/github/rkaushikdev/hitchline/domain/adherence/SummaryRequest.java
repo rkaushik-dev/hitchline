@@ -1,7 +1,6 @@
 package io.github.rkaushikdev.hitchline.domain.adherence;
 
 import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
-import io.github.rkaushikdev.hitchline.domain.rotation.RotationAssignment;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,13 +68,8 @@ public record SummaryRequest(Roster roster, List<ObligationResult> results, List
      * are built on.
      */
     public List<PeriodSummary> byHitch() {
-        RotationAssignment rotation = roster.member().rotation();
-        int first = rotation.hitchNumberOn(range.from());
-        int last = rotation.hitchNumberOn(range.to());
-        List<PeriodSummary> summaries = new ArrayList<>();
-        for (int number = first; number <= last; number += 1) {
-            summaries.add(with(results, rotation.hitchRange(number)).summarise());
-        }
-        return summaries;
+        return roster.member().rotation().hitchesOver(range).stream()
+                .map(hitch -> with(results, hitch).summarise())
+                .toList();
     }
 }

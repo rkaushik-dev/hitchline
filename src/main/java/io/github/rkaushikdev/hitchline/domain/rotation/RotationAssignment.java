@@ -113,6 +113,15 @@ public record RotationAssignment(RotationPattern pattern, CivilDate anchor, int 
         return DateRange.of(from, from.plusDays(length - 1L));
     }
 
+    /** Every turn of the rotation that touches {@code range}, whole and in order. */
+    public List<DateRange> hitchesOver(DateRange range) {
+        List<DateRange> hitches = new ArrayList<>();
+        for (int number = hitchNumberOn(range.from()); number <= hitchNumberOn(range.to()); number += 1) {
+            hitches.add(hitchRange(number));
+        }
+        return hitches;
+    }
+
     public DateRange hitchRangeOn(CivilDate date) {
         return hitchRange(hitchNumberOn(date));
     }

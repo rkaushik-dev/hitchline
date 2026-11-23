@@ -8,7 +8,6 @@ import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleBlock;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleCalendar;
 import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
-import io.github.rkaushikdev.hitchline.domain.rotation.RotationAssignment;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import java.util.ArrayList;
@@ -76,13 +75,9 @@ public record Expansion(Roster roster, Habit habit, DateRange window, Optional<H
      * the thing three times in their first week has finished what the fortnight asked for.
      */
     private List<Obligation> perHitch(int times) {
-        RotationAssignment rotation = roster.member().rotation();
-        int first = rotation.hitchNumberOn(window.from());
-        int last = rotation.hitchNumberOn(window.to());
         List<Obligation> entries = new ArrayList<>();
-        for (int number = first; number <= last; number += 1) {
-            habitWindow(habit, rotation.hitchRange(number))
-                    .ifPresent(live -> entries.add(emit(ObligationScope.HITCH, live, times)));
+        for (DateRange hitch : roster.member().rotation().hitchesOver(window)) {
+            habitWindow(habit, hitch).ifPresent(live -> entries.add(emit(ObligationScope.HITCH, live, times)));
         }
         return entries;
     }

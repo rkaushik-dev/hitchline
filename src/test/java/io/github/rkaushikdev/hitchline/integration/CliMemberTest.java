@@ -317,6 +317,26 @@ class CliMemberTest {
         }
 
         @Test
+        void countsEachHitchAsWorkedAgainstAsRostered() {
+            String id = addAda();
+            run(
+                    "member",
+                    "hold",
+                    id,
+                    "--window",
+                    "2025-01-20..2025-01-22",
+                    "--role",
+                    "onshift",
+                    "--reason",
+                    "held_over");
+            context.clear();
+            run("member", "roster", id, "--window", "2025-01-06..2025-01-07", "--by-hitch");
+            String text = context.text();
+            assertThat(text).contains("rostered");
+            assertThat(text).containsPattern("2025-01-06\\.\\.2025-02-02 +14 +17 +3 +0 +held_over 3");
+        }
+
+        @Test
         void saysWhenTheRosterIsInsideTheDutyLimits() {
             String id = addAda();
             run("member", "roster", id, "--window", "2025-01-06..2025-02-02", "--check");

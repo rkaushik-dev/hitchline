@@ -14,6 +14,7 @@ import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
+import io.github.rkaushikdev.hitchline.domain.rotation.HitchVariance;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.rotation.RosterOverride;
 import io.github.rkaushikdev.hitchline.domain.rotation.RotationAssignment;
@@ -186,6 +187,9 @@ public final class MemberCommands {
                 description = "show another member's role on each day, such as a back to back")
         private String beside;
 
+        @Option(names = "--by-hitch", description = "count each hitch as worked against as rostered")
+        private boolean byHitch;
+
         @Option(names = "--check", description = "check the trips and breaks against the duty limits")
         private boolean check;
 
@@ -218,6 +222,10 @@ public final class MemberCommands {
                 columns.add(Column.left("beside", day -> theirs.get(day.date()).wire()));
             }
             ctx.out(Render.renderTable(roster.daysFor(id, window), columns));
+            if (byHitch) {
+                ctx.out("");
+                ctx.out(Render.renderTable(roster.variance(id, window), VARIANCE_COLUMNS));
+            }
             if (check) {
                 DutyLimits limits = DutyLimits.of(
                         Arguments.wholeNumber(maxTrip, "maxTripDays", "must be a whole number of days"),
@@ -231,6 +239,14 @@ public final class MemberCommands {
             }
         }
     }
+
+    private static final List<Column<HitchVariance>> VARIANCE_COLUMNS = List.of(
+            Column.left("hitch", row -> row.hitch().toString()),
+            Column.right("rostered", row -> Integer.toString(row.scheduled())),
+            Column.right("worked", row -> Integer.toString(row.worked())),
+            Column.right("over", row -> Integer.toString(row.over())),
+            Column.right("under", row -> Integer.toString(row.under())),
+            Column.left("why", HitchVariance::describeReasons));
 
     private static final List<Column<RosterDay>> DAY_COLUMNS = List.of(
             Column.left("date", day -> day.date().toString()),
