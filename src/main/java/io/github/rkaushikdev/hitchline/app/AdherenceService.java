@@ -9,6 +9,8 @@ import io.github.rkaushikdev.hitchline.domain.adherence.HabitSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.HourBucket;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
+import io.github.rkaushikdev.hitchline.domain.adherence.Quota;
+import io.github.rkaushikdev.hitchline.domain.adherence.QuotaReading;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestHoursRule;
 import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
@@ -121,6 +123,17 @@ public final class AdherenceService {
                 .filter(item -> item.checkIn().habitId().equals(habitId))
                 .toList();
         return rule.check(logged, range);
+    }
+
+    /**
+     * The member's window read against a quota. Only what a shield does not excuse can count
+     * against it, the same as in the summary.
+     */
+    public QuotaReading quota(String memberId, String window, Quota quota) {
+        LoadedMember loaded = loader.load(memberId);
+        List<ObligationResult> owed =
+                Shield.unexcused(loader.score(loaded, DateRange.parse(window)), loaded.shields(), memberId);
+        return quota.read(owed);
     }
 
     /** What is still open in a window and not yet done enough times, less anything a shield excuses. */

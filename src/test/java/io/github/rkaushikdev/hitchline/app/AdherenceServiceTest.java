@@ -14,6 +14,8 @@ import io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus;
 import io.github.rkaushikdev.hitchline.domain.adherence.FreezeBudget;
 import io.github.rkaushikdev.hitchline.domain.adherence.FrozenStreak;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
+import io.github.rkaushikdev.hitchline.domain.adherence.Quota;
+import io.github.rkaushikdev.hitchline.domain.adherence.QuotaReading;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestHoursRule;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestRule;
@@ -180,6 +182,33 @@ class AdherenceServiceTest {
             shieldLeave();
             assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().shieldedDays())
                     .isEqualTo(3);
+        }
+    }
+
+    @Nested
+    class Quotas {
+
+        @Test
+        void saysWhenMoreSlippedThanTheQuotaAllows() {
+            checkInOn("2025-01-06");
+            QuotaReading reading = service.quota(ADA, "2025-01-06..2025-01-12", Quota.of("weekly", 2, 7));
+            assertThat(reading.isBreached()).isTrue();
+            assertThat(reading.worst()).isEqualTo(6);
+            assertThat(reading.breaches().get(0).firstOn().toString()).isEqualTo("2025-01-07");
+        }
+
+        @Test
+        void holdsNothingOnLeaveAgainstTheQuota() {
+            for (String day : List.of("2025-01-06", "2025-01-07", "2025-01-08", "2025-01-09", "2025-01-10")) {
+                checkInOn(day);
+            }
+            Quota weekly = Quota.of("weekly", 1, 7);
+            assertThat(service.quota(ADA, "2025-01-06..2025-01-12", weekly).isBreached())
+                    .isTrue();
+            shieldLeave("2025-01-11..2025-01-12");
+            QuotaReading reading = service.quota(ADA, "2025-01-06..2025-01-12", weekly);
+            assertThat(reading.isBreached()).isFalse();
+            assertThat(reading.headroom()).isEqualTo(1);
         }
     }
 

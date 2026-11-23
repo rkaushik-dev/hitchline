@@ -11,6 +11,8 @@ import io.github.rkaushikdev.hitchline.domain.adherence.FreezeBudget;
 import io.github.rkaushikdev.hitchline.domain.adherence.FrozenStreak;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
+import io.github.rkaushikdev.hitchline.domain.adherence.Quota;
+import io.github.rkaushikdev.hitchline.domain.adherence.QuotaReading;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestHoursRule;
 import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
@@ -85,6 +87,15 @@ public final class ReportCommands {
                 description = "check a rest log against 10 hours a day and 77 a week")
         private String restHours;
 
+        @Option(
+                names = "--quota",
+                paramLabel = "<misses/days>",
+                description = "say whether more slipped than this many in so many days, such as 2/7")
+        private String quota;
+
+        @Option(names = "--misses-only", description = "count only outright misses against the quota")
+        private boolean missesOnly;
+
         ReportAdherence(Supplier<Context> context) {
             super(context);
         }
@@ -97,22 +108,41 @@ public final class ReportCommands {
             ctx.out(Render.heading("adherence for " + memberId));
             ctx.out(Render.keyValues(summaryLines(report)));
             if (byHitch) {
-                ctx.out("");
-                ctx.out(Render.renderTable(report.byHitch(), summaryColumns()));
+                section(ctx, List.of(Render.renderTable(report.byHitch(), summaryColumns())));
             }
             if (shape) {
-                ctx.out("");
-                ctx.out(Render.renderTable(report.byRole(), roleColumns()));
-                ctx.out("");
-                ctx.out(Render.keyValues(shapeLines(report)));
+                section(ctx, List.of(Render.renderTable(report.byRole(), roleColumns())));
+                section(ctx, List.of(Render.keyValues(shapeLines(report))));
             }
             if (restHours != null) {
-                List<RestBreach> breaches =
-                        service.restHours(id, Ids.habitId(restHours), window, RestHoursRule.DEFAULT);
-                ctx.out("");
-                ctx.out(breaches.isEmpty() ? "inside the rest hour rules" : "rest hour breaches");
-                breaches.forEach(breach -> ctx.out(breach.describe()));
+                section(ctx, restSection(service.restHours(id, Ids.habitId(restHours), window, RestHoursRule.DEFAULT)));
             }
+            if (quota != null) {
+                section(ctx, quotaSection(service.quota(id, window, Quota.parse("quota", quota, missesOnly))));
+            }
+        }
+
+        /** One part of the report, set off from the part before it by a blank line. */
+        private static void section(Context ctx, List<String> lines) {
+            ctx.out("");
+            lines.forEach(ctx::out);
+        }
+
+        private static List<String> restSection(List<RestBreach> breaches) {
+            List<String> lines = new ArrayList<>();
+            lines.add(breaches.isEmpty() ? "inside the rest hour rules" : "rest hour breaches");
+            breaches.forEach(breach -> lines.add(breach.describe()));
+            return lines;
+        }
+
+        private static List<String> quotaSection(QuotaReading reading) {
+            List<String> lines = new ArrayList<>(List.of(reading.quota().describe()));
+            lines.add(Render.keyValues(List.of(
+                    Map.entry(
+                            "worst", reading.worst() + " in " + reading.quota().windowDays() + " days"),
+                    Map.entry("headroom", Integer.toString(reading.headroom())))));
+            reading.breaches().forEach(breach -> lines.add(breach.describe()));
+            return lines;
         }
 
         private static List<Map.Entry<String, String>> summaryLines(AdherenceReport report) {

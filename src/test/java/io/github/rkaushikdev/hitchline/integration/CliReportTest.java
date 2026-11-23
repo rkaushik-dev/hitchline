@@ -129,6 +129,25 @@ class CliReportTest {
         }
 
         @Test
+        void readsTheWindowAgainstAQuota() {
+            int code = run("report", "adherence", ADA, "--window", "2025-01-06..2025-01-12", "--quota", "2/7");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            String text = context.text();
+            assertThat(text).contains("quota: at most 2 misses or partials in 7 days");
+            assertThat(text).containsPattern("worst +5 in 7 days");
+            assertThat(text).contains("quota broken 2025-01-08 to 2025-01-14 with 5");
+        }
+
+        @Test
+        void countsOnlyMissesAgainstAQuotaWhenAsked() {
+            run("report", "adherence", ADA, "--window", "2025-01-06..2025-01-07", "--quota", "0/7", "--misses-only");
+            assertThat(context.text()).contains("quota: at most 0 misses in 7 days");
+            assertThat(context.text()).containsPattern("headroom +0");
+            assertThat(run("report", "adherence", ADA, "--window", "2025-01-06..2025-01-07", "--quota", "often"))
+                    .isEqualTo(Context.EXIT_MISUSED);
+        }
+
+        @Test
         void refusesAWindowItCannotRead() {
             assertThat(run("report", "adherence", ADA, "--window", "january")).isEqualTo(Context.EXIT_MISUSED);
         }

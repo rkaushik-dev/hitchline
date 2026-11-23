@@ -6,6 +6,8 @@ import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import io.github.rkaushikdev.hitchline.util.Texts;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A rule about how much slipping is tolerated. A streak says how good the last run was; a quota
@@ -20,6 +22,8 @@ import java.util.List;
 public record Quota(String name, int allowed, int windowDays, boolean countPartial) {
 
     static final int MAX_WINDOW_DAYS = 365;
+
+    private static final Pattern WRITTEN = Pattern.compile("(\\d{1,6})/(\\d{1,6})");
 
     public Quota {
         name = Texts.trim(name);
@@ -41,6 +45,18 @@ public record Quota(String name, int allowed, int windowDays, boolean countParti
 
     public static Quota of(String name, int allowed, int windowDays, boolean countPartial) {
         return new Quota(name, allowed, windowDays, countPartial);
+    }
+
+    /**
+     * Reads a quota written as allowed over days, such as {@code 2/7} for at most two in a week.
+     * Partials count unless {@code missesOnly} says only an outright miss does.
+     */
+    public static Quota parse(String name, String text, boolean missesOnly) {
+        Matcher match = WRITTEN.matcher(Texts.trim(text));
+        if (!match.matches()) {
+            throw ValidationException.field("quota", "must look like 2/7, got " + text);
+        }
+        return new Quota(name, Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), !missesOnly);
     }
 
     private boolean countsAgainst(ObligationResult result) {

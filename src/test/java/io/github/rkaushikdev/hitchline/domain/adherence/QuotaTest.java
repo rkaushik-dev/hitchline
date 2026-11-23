@@ -49,6 +49,28 @@ class QuotaTest {
     }
 
     @Nested
+    class WritingAQuota {
+
+        @Test
+        void readsAllowedOverDays() {
+            Quota quota = Quota.parse("weekly slip", "2/7", false);
+            assertThat(quota).isEqualTo(Quota.of("weekly slip", 2, 7));
+            assertThat(quota.countPartial()).isTrue();
+        }
+
+        @Test
+        void countsOnlyMissesWhenAsked() {
+            assertThat(Quota.parse("tight", " 0/14 ", true)).isEqualTo(Quota.of("tight", 0, 14, false));
+        }
+
+        @Test
+        void refusesAQuotaItCannotRead() {
+            assertThatThrownBy(() -> Quota.parse("q", "two a week", false)).hasMessageContaining("must look like 2/7");
+            assertThatThrownBy(() -> Quota.parse("q", "2/0", false)).hasMessageContaining("between 1 and 365");
+        }
+    }
+
+    @Nested
     class ReadingAQuota {
 
         @Test
