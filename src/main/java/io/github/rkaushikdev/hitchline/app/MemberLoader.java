@@ -3,6 +3,7 @@ package io.github.rkaushikdev.hitchline.app;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.Proration;
+import io.github.rkaushikdev.hitchline.domain.adherence.Shield;
 import io.github.rkaushikdev.hitchline.domain.checkin.CheckIn;
 import io.github.rkaushikdev.hitchline.domain.checkin.ResolvedCheckIn;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
@@ -49,6 +50,22 @@ public final class MemberLoader {
     public List<ObligationResult> score(LoadedMember loaded, DateRange window) {
         return loaded.habits().stream()
                 .flatMap(habit -> scoreOne(loaded, habit, window).stream())
+                .toList();
+    }
+
+    /**
+     * What the member's habits ask for over {@code window}, prorated around the shields, with
+     * anything due on a shielded day left out: the obligations every report and calendar is built
+     * from.
+     */
+    public List<Obligation> owed(LoadedMember loaded, DateRange window) {
+        String memberId = loaded.roster().member().id();
+        return loaded.habits().stream()
+                .flatMap(
+                        habit -> Proration.prorateAll(
+                                Expansion.of(loaded.roster(), habit, window).expand(), loaded.shields(), memberId)
+                                .stream())
+                .filter(obligation -> !Shield.isShielded(loaded.shields(), memberId, obligation.dueOn()))
                 .toList();
     }
 

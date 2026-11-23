@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.ValidationException;
+import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.RoleBlock;
+import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
 import io.github.rkaushikdev.hitchline.domain.schedule.Obligation;
 import io.github.rkaushikdev.hitchline.domain.schedule.ObligationScope;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
@@ -29,6 +33,41 @@ class IcsExportTest {
     private static final Obligation DAILY =
             new Obligation(TREADMILL, ADA, ObligationScope.DAY, DateRange.parse("2025-01-10..2025-01-10"), 1);
     private static final CalendarOptions ADA_CALENDAR = CalendarOptions.of("Ada", STAMPED_AT);
+
+    @Nested
+    class TheRoster {
+
+        private final CrewMember ada = Fixtures.aMember();
+
+        @Test
+        void writesOneEventForEachRunOfDays() {
+            List<RoleBlock> blocks = Roster.of(ada).effectiveBlocks(DateRange.parse("2025-01-06..2025-02-02"));
+            String text = IcsExport.rosterToCalendar(ada, blocks, ADA_CALENDAR);
+            assertThat(Texts.split(text, "BEGIN:VEVENT")).hasSize(3);
+            assertThat(text).contains("SUMMARY:Offshore at Europe/Oslo\r\n");
+            assertThat(text).contains("SUMMARY:Home\r\n");
+            assertThat(text).contains("DTSTART;VALUE=DATE:20250120\r\nDTEND;VALUE=DATE:20250203");
+        }
+
+        @Test
+        void endsAnAllDayRunOnTheDayAfterItsLastDay() {
+            CalendarEvent event =
+                    IcsExport.eventFor(ada, new RoleBlock(DayRole.ONSHIFT, DateRange.parse("2025-01-06..2025-01-19")));
+            assertThat(event.from()).isEqualTo(CivilDate.parse("2025-01-06"));
+            assertThat(event.to()).isEqualTo(CivilDate.parse("2025-01-20"));
+            assertThat(event.uid()).isEqualTo("rota-" + ada.id() + "-2025-01-06");
+            assertThat(event.description()).isEqualTo("onshift for 14 days");
+        }
+
+        @Test
+        void namesEveryRoleTheWayACalendarAtHomeWouldShowIt() {
+            assertThat(IcsExport.rosterSummary(DayRole.TRAVEL, ada)).isEqualTo("Travelling");
+            assertThat(IcsExport.rosterSummary(DayRole.STANDBY, ada)).isEqualTo("On standby at home");
+            assertThat(IcsExport.eventFor(ada, new RoleBlock(DayRole.TRAVEL, DateRange.parse("2025-01-05..2025-01-05")))
+                            .description())
+                    .isEqualTo("travel for 1 day");
+        }
+    }
 
     @Nested
     class Escaping {

@@ -1,7 +1,10 @@
 package io.github.rkaushikdev.hitchline.export;
 
 import io.github.rkaushikdev.hitchline.domain.ValidationException;
+import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.habit.Habit;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.RoleBlock;
 import io.github.rkaushikdev.hitchline.domain.schedule.Obligation;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.Zones;
@@ -18,7 +21,8 @@ import java.util.regex.Pattern;
 /**
  * Calendar export in iCalendar form (RFC 5545). A crew member who lives in their phone calendar
  * wants the hitch and what it asks for to show up there, so each obligation becomes an all day
- * event on the day it falls due.
+ * event on the day it falls due, and the roster itself can go in as one event per run of days, so
+ * the family calendar at home shows when somebody is offshore.
  */
 public final class IcsExport {
 
@@ -157,13 +161,35 @@ public final class IcsExport {
             List<Habit> habits, List<Obligation> obligations, CalendarOptions options) {
         Map<String, Habit> byId = new LinkedHashMap<>();
         habits.forEach(habit -> byId.put(habit.id(), habit));
-        List<CalendarEvent> events = new ArrayList<>();
-        for (Obligation obligation : obligations) {
-            Habit habit = byId.get(obligation.habitId());
-            if (habit != null) {
-                events.add(eventFor(habit, obligation));
-            }
-        }
+        List<CalendarEvent> events = obligations.stream()
+                .filter(obligation -> byId.containsKey(obligation.habitId()))
+                .map(obligation -> eventFor(byId.get(obligation.habitId()), obligation))
+                .toList();
         return toCalendar(events, options);
+    }
+
+    /** What a run of days is called in somebody's calendar. */
+    static String rosterSummary(DayRole role, CrewMember member) {
+        return switch (role) {
+            case ONSHIFT -> "Offshore at " + member.siteZone();
+            case OFFSHIFT -> "Home";
+            case TRAVEL -> "Travelling";
+            case STANDBY -> "On standby at home";
+        };
+    }
+
+    /** The event for one run of same role days, ending the day after its last day. */
+    public static CalendarEvent eventFor(CrewMember member, RoleBlock block) {
+        return new CalendarEvent(
+                "rota-" + member.id() + "-" + block.range().from(),
+                rosterSummary(block.role(), member),
+                block.role() + " for " + block.days() + (block.days() == 1 ? " day" : " days"),
+                block.range().from(),
+                block.range().to().plusDays(1));
+    }
+
+    /** A calendar of the roster's runs of days, one event each. */
+    public static String rosterToCalendar(CrewMember member, List<RoleBlock> blocks, CalendarOptions options) {
+        return toCalendar(blocks.stream().map(block -> eventFor(member, block)).toList(), options);
     }
 }

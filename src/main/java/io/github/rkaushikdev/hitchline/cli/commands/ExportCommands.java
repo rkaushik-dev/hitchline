@@ -8,14 +8,12 @@ import io.github.rkaushikdev.hitchline.app.RosterService;
 import io.github.rkaushikdev.hitchline.cli.Context;
 import io.github.rkaushikdev.hitchline.cli.Render;
 import io.github.rkaushikdev.hitchline.domain.Ids;
-import io.github.rkaushikdev.hitchline.domain.schedule.Expansion;
-import io.github.rkaushikdev.hitchline.domain.schedule.Obligation;
+import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import io.github.rkaushikdev.hitchline.export.CsvExport;
 import io.github.rkaushikdev.hitchline.export.IcsExport;
 import io.github.rkaushikdev.hitchline.export.IcsExport.CalendarOptions;
 import io.github.rkaushikdev.hitchline.util.Texts;
-import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import picocli.CommandLine;
@@ -115,8 +113,11 @@ public final class ExportCommands {
         }
     }
 
-    @Command(name = "calendar", description = "what is owed in a window as an ics calendar")
+    @Command(name = "calendar", description = "what is owed in a window, or the roster, as an ics calendar")
     static final class ExportCalendar extends Export {
+
+        @Option(names = "--roster", description = "write the roster's runs of days instead of what is owed")
+        private boolean roster;
 
         ExportCalendar(Supplier<Context> context) {
             super(context);
@@ -124,18 +125,18 @@ public final class ExportCommands {
 
         @Override
         void run(Context ctx) {
-            LoadedMember loaded = new MemberLoader(ctx.ports()).load(Ids.crewMemberId(memberId));
+            MemberLoader loader = new MemberLoader(ctx.ports());
+            LoadedMember loaded = loader.load(Ids.crewMemberId(memberId));
+            CrewMember member = loaded.roster().member();
             DateRange range = DateRange.parse(window);
-            List<Obligation> obligations = loaded.habits().stream()
-                    .flatMap(habit -> Expansion.of(loaded.roster(), habit, range).expand().stream())
-                    .toList();
-            String body = IcsExport.obligationsToCalendar(
-                    loaded.habits(),
-                    obligations,
-                    CalendarOptions.of(
-                            loaded.roster().member().displayName() + " hitchline",
-                            ctx.ports().clock().now()));
-            deliver(ctx, body);
+            String suffix = roster ? " rota" : " hitchline";
+            CalendarOptions options = CalendarOptions.of(
+                    member.displayName() + suffix, ctx.ports().clock().now());
+            deliver(
+                    ctx,
+                    roster
+                            ? IcsExport.rosterToCalendar(member, loaded.roster().effectiveBlocks(range), options)
+                            : IcsExport.obligationsToCalendar(loaded.habits(), loader.owed(loaded, range), options));
         }
     }
 }

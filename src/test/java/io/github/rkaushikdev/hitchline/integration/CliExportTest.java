@@ -2,11 +2,14 @@ package io.github.rkaushikdev.hitchline.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.rkaushikdev.hitchline.app.RosterService;
+import io.github.rkaushikdev.hitchline.app.RosterService.ShieldCommand;
 import io.github.rkaushikdev.hitchline.cli.Context;
 import io.github.rkaushikdev.hitchline.cli.Main;
 import io.github.rkaushikdev.hitchline.cli.Recorder;
 import io.github.rkaushikdev.hitchline.config.Config;
 import io.github.rkaushikdev.hitchline.config.StoreKind;
+import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
 import io.github.rkaushikdev.hitchline.infra.IdSources;
@@ -18,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -112,6 +116,30 @@ class CliExportTest {
             assertThat(body).startsWith("BEGIN:VCALENDAR");
             assertThat(body).contains("BEGIN:VEVENT");
             assertThat(body).contains("X-WR-CALNAME:Ada Vasquez hitchline");
+        }
+
+        @Test
+        void writesTheRosterAsRunsOfDaysWhenAsked() {
+            assertThat(run("export", "calendar", member, "--window", "2025-01-06..2025-02-02", "--roster"))
+                    .isEqualTo(Context.EXIT_OK);
+            String body = context.text();
+            assertThat(body).contains("X-WR-CALNAME:Ada Vasquez rota");
+            assertThat(body).contains("SUMMARY:Offshore at Europe/Oslo");
+            assertThat(body).contains("SUMMARY:Home");
+            assertThat(Texts.split(body, "BEGIN:VEVENT")).hasSize(3);
+        }
+
+        @Test
+        void leavesADayOfLeaveOffTheCalendar() {
+            run("export", "calendar", member, "--window", "2025-01-06..2025-01-07");
+            int before = Texts.split(context.text(), "BEGIN:VEVENT").size();
+            new RosterService(store)
+                    .shieldDays(new ShieldCommand(
+                            member, "2025-01-07..2025-01-07", ShieldReason.SICK, Optional.empty(), Optional.empty()));
+            context.clear();
+            run("export", "calendar", member, "--window", "2025-01-06..2025-01-07");
+            assertThat(Texts.split(context.text(), "BEGIN:VEVENT")).hasSizeLessThan(before);
+            assertThat(context.text()).doesNotContain("DTSTART;VALUE=DATE:20250107");
         }
 
         @Test
