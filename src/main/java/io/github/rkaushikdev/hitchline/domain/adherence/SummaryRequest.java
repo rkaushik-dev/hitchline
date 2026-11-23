@@ -38,16 +38,16 @@ public record SummaryRequest(Roster roster, List<ObligationResult> results, List
     /** The whole window as one period. */
     public PeriodSummary summarise() {
         List<ObligationResult> scoped = inRange();
-        StatusTally counts = ObligationResult.countByStatus(scoped);
+        StatusTally counts = StatusTally.of(scoped);
         return new PeriodSummary(
                 range,
-                scoped.size(),
+                counts.owed(),
                 counts.met(),
                 counts.partial(),
                 counts.missed(),
                 counts.pending(),
                 Shield.shieldedDayCount(shields, roster.member().id(), range),
-                ObligationResult.adherenceRate(scoped));
+                counts.rate());
     }
 
     /** One summary per habit with something due in the window, in habit id order. */

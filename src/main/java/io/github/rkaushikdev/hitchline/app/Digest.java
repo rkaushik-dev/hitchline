@@ -1,8 +1,8 @@
 package io.github.rkaushikdev.hitchline.app;
 
-import io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
+import io.github.rkaushikdev.hitchline.domain.adherence.StatusTally;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.habit.Habit;
@@ -46,28 +46,23 @@ public record Digest(
      * @param name the habit
      * @param owed obligations that are settled
      * @param met how many of those were met
+     * @param partial how many of those were done only in part
      * @param streak the run still going
      */
-    public record HabitLine(String name, int owed, int met, int streak) {}
+    public record HabitLine(String name, int owed, int met, int partial, int streak) {}
 
     /** A line for every habit that owed anything, the most met first, then by name. */
     public List<HabitLine> habitLines() {
         List<HabitLine> lines = new ArrayList<>();
         for (Habit habit : habits) {
-            List<ObligationResult> mine = results.stream()
+            StatusTally tally = StatusTally.of(results.stream()
                     .filter(result -> result.obligation().habitId().equals(habit.id()))
-                    .toList();
-            int owed = (int) mine.stream()
-                    .filter(result -> result.status() != AdherenceStatus.PENDING)
-                    .count();
-            int met = (int) mine.stream()
-                    .filter(result -> result.status() == AdherenceStatus.MET)
-                    .count();
+                    .toList());
             int streak = Optional.ofNullable(streaks.get(habit.id()))
                     .map(StreakSummary::current)
                     .orElse(0);
-            if (owed > 0) {
-                lines.add(new HabitLine(habit.name(), owed, met, streak));
+            if (tally.settled() > 0) {
+                lines.add(new HabitLine(habit.name(), tally.settled(), tally.met(), tally.partial(), streak));
             }
         }
         lines.sort(Comparator.comparingInt(HabitLine::met).reversed().thenComparing(HabitLine::name, Collation.ORDER));
@@ -99,8 +94,9 @@ public record Digest(
         List<String> lines = new ArrayList<>(List.of(headline(), ""));
         List<HabitLine> habitLines = habitLines();
         for (HabitLine line : habitLines) {
+            String part = line.partial() == 0 ? "" : ", " + line.partial() + " part done";
             String run = line.streak() == 0 ? "" : ", " + line.streak() + " in a row";
-            lines.add("- " + line.name() + ": " + share(line.met(), line.owed()) + run);
+            lines.add("- " + line.name() + ": " + share(line.met(), line.owed()) + part + run);
         }
         if (summary.shieldedDays() > 0) {
             lines.add("");

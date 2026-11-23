@@ -157,6 +157,7 @@ public final class CrewCommands {
                     Column.left("name", CrewLine::displayName),
                     Column.right("owed", row -> Integer.toString(row.owed())),
                     Column.right("met", row -> Integer.toString(row.met())),
+                    Column.right("partial", row -> Integer.toString(row.partial())),
                     Column.right("missed", row -> Integer.toString(row.missed())),
                     Column.right("rate", row -> Render.percent(row.rate())),
                     Column.right("hidden", row -> Integer.toString(row.hidden())));

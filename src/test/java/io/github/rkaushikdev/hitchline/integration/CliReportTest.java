@@ -211,6 +211,13 @@ class CliReportTest {
         }
 
         @Test
+        void splitsWhatClosedShortIntoPartialsAndMisses() {
+            run("report", "adherence", ADA, "--window", "2025-01-06..2025-01-19", "--shape");
+            assertThat(context.text()).containsPattern("role +owed +met +partial +missed +rate");
+            assertThat(context.text()).containsPattern("onshift +14 +2 +0 +12 +14%");
+        }
+
+        @Test
         void saysWhatTheTrendIs() {
             run("report", "adherence", ADA, "--window", "2025-01-06..2025-01-19", "--shape");
             assertThat(context.text()).contains("not enough hitches to say");

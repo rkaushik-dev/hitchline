@@ -2,6 +2,7 @@ package io.github.rkaushikdev.hitchline.domain.adherence;
 
 import static io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus.MET;
 import static io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus.MISSED;
+import static io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus.PARTIAL;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.rkaushikdev.hitchline.domain.Ids;
@@ -107,6 +108,19 @@ class AnalyticsTest {
             assertThat(split.stream().map(RoleSplit::role)).containsExactly(DayRole.ONSHIFT, DayRole.OFFSHIFT);
             assertThat(split.get(0).rate()).isEqualTo(1.0);
             assertThat(split.get(1).rate()).isEqualTo(0.5);
+        }
+
+        @Test
+        void countsThePartialsAndMissesOnEachRole() {
+            List<ObligationResult> mixed = List.of(
+                    Builders.aResult("2025-01-06", PARTIAL),
+                    Builders.aResult("2025-01-07", MET),
+                    Builders.aResult("2025-01-20", MISSED));
+            List<RoleSplit> split = Analytics.byRole(mixed, roleOf);
+            assertThat(split.get(0).partial()).isEqualTo(1);
+            assertThat(split.get(0).missed()).isZero();
+            assertThat(split.get(1).missed()).isEqualTo(1);
+            assertThat(split.get(1).owed()).isEqualTo(1);
         }
 
         @Test

@@ -82,6 +82,31 @@ class DigestTest {
     }
 
     @Nested
+    class PartDoneDays {
+
+        private final List<ObligationResult> half = List.of(
+                result(TREADMILL, "2025-06-02", AdherenceStatus.MET),
+                result(TREADMILL, "2025-06-03", AdherenceStatus.PARTIAL),
+                result(TREADMILL, "2025-06-04", AdherenceStatus.PARTIAL),
+                result(TREADMILL, "2025-06-05", AdherenceStatus.PENDING));
+
+        @Test
+        void countsThemOnTheHabitLine() {
+            HabitLine line = anInput(half).habitLines().get(0);
+            assertThat(line.owed()).isEqualTo(3);
+            assertThat(line.met()).isEqualTo(1);
+            assertThat(line.partial()).isEqualTo(2);
+        }
+
+        @Test
+        void saysHowManyWereDoneInPart() {
+            assertThat(anInput(half).text())
+                    .contains("- Twenty minutes on the treadmill: 1 of 3, 2 part done, 4 in a row");
+            assertThat(anInput().text()).doesNotContain("part done");
+        }
+    }
+
+    @Nested
     class TheHeadline {
 
         @Test

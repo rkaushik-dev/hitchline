@@ -86,40 +86,18 @@ public record ObligationResult(
         return status != AdherenceStatus.PENDING;
     }
 
+    /** The results counted by status. */
     public static StatusTally countByStatus(List<ObligationResult> results) {
-        int met = 0;
-        int partial = 0;
-        int missed = 0;
-        int pending = 0;
-        for (ObligationResult result : results) {
-            switch (result.status) {
-                case MET -> met += 1;
-                case PARTIAL -> partial += 1;
-                case MISSED -> missed += 1;
-                case PENDING -> pending += 1;
-            }
-        }
-        return new StatusTally(met, partial, missed, pending);
+        return StatusTally.of(results);
     }
 
-    /**
-     * Share of the settled obligations that were met. Pending ones are left out of both halves of
-     * the fraction rather than counted as failures; with nothing settled the rate is one.
-     */
+    /** Share of the settled obligations that were met, one when nothing is settled. */
     public static double adherenceRate(List<ObligationResult> results) {
-        List<ObligationResult> settled =
-                results.stream().filter(ObligationResult::isSettled).toList();
-        if (settled.isEmpty()) {
-            return 1;
-        }
-        long met = settled.stream()
-                .filter(result -> result.status == AdherenceStatus.MET)
-                .count();
-        return met / (double) settled.size();
+        return StatusTally.of(results).rate();
     }
 
     /** The number of results that can no longer change. */
     public static int settledCount(List<ObligationResult> results) {
-        return (int) results.stream().filter(ObligationResult::isSettled).count();
+        return StatusTally.of(results).settled();
     }
 }

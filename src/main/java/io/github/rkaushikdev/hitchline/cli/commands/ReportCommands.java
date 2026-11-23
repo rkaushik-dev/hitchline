@@ -205,6 +205,8 @@ public final class ReportCommands {
                 Column.left("role", row -> row.role().wire()),
                 Column.right("owed", row -> Integer.toString(row.owed())),
                 Column.right("met", row -> Integer.toString(row.met())),
+                Column.right("partial", row -> Integer.toString(row.partial())),
+                Column.right("missed", row -> Integer.toString(row.missed())),
                 Column.right("rate", row -> Render.percent(row.rate())));
     }
 

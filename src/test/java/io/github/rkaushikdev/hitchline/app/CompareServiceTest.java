@@ -101,6 +101,15 @@ class CompareServiceTest {
         }
 
         @Test
+        void countsADayDonePartlyApartFromOneMissed() {
+            store.habits().save(Fixtures.aHabit(o -> o.cadence("2/onshift-day").startsOn("2025-01-06")));
+            CrewLine mine = lineOf(service.crew(ADA, alpha, WINDOW, "2025-01-20"), ADA);
+            assertThat(mine.partial()).isEqualTo(2);
+            assertThat(mine.missed()).isEqualTo(12);
+            assertThat(mine.met()).isZero();
+        }
+
+        @Test
         void hidesAHabitSomebodyHasNotShared() {
             CrewLine theirs = lineOf(service.crew(ADA, alpha, WINDOW, "2025-01-20"), BO);
             assertThat(theirs.owed()).isZero();

@@ -58,13 +58,9 @@ public final class Analytics {
             List<ObligationResult> mine = results.stream()
                     .filter(result -> roleOf.apply(result) == role)
                     .toList();
-            if (mine.isEmpty()) {
-                continue;
+            if (!mine.isEmpty()) {
+                splits.add(RoleSplit.of(role, StatusTally.of(mine)));
             }
-            int met = (int) mine.stream()
-                    .filter(result -> result.status() == AdherenceStatus.MET)
-                    .count();
-            splits.add(new RoleSplit(role, mine.size(), met, ObligationResult.adherenceRate(mine)));
         }
         return splits;
     }

@@ -42,12 +42,13 @@ public final class CompareService {
      * @param displayName their name
      * @param owed the obligations the viewer may read
      * @param met how many of those were met
+     * @param partial how many closed partly done
      * @param missed how many were missed outright
      * @param rate the adherence rate over them
      * @param hidden habits left out because the viewer may not read them
      */
     public record CrewLine(
-            String memberId, String displayName, int owed, int met, int missed, double rate, int hidden) {}
+            String memberId, String displayName, int owed, int met, int partial, int missed, double rate, int hidden) {}
 
     /**
      * A crew compared.
@@ -103,14 +104,15 @@ public final class CompareService {
                 readable.addAll(loader.scoreOne(loaded, habit, range));
             }
             List<ObligationResult> owed = Shield.unexcused(readable, loaded.shields(), member.id());
-            StatusTally counts = ObligationResult.countByStatus(owed);
+            StatusTally counts = StatusTally.of(owed);
             lines.add(new CrewLine(
                     member.id(),
                     member.displayName(),
-                    owed.size(),
+                    counts.owed(),
                     counts.met(),
+                    counts.partial(),
                     counts.missed(),
-                    ObligationResult.adherenceRate(owed),
+                    counts.rate(),
                     hidden));
         }
         lines.sort(BEST_FIRST);
