@@ -100,6 +100,18 @@ public record Expansion(Roster roster, Habit habit, DateRange window, Optional<H
         return entries;
     }
 
+    /** One obligation per calendar week, Monday to Sunday, clipped to the habit's life. */
+    private List<Obligation> perWeek(int times) {
+        List<Obligation> entries = new ArrayList<>();
+        CivilDate monday = window.from().startOfIsoWeek();
+        while (!monday.isAfter(window.to())) {
+            habitWindow(habit, DateRange.of(monday, monday.endOfIsoWeek()))
+                    .ifPresent(live -> entries.add(emit(ObligationScope.WEEK, live, times)));
+            monday = monday.plusDays(7);
+        }
+        return entries;
+    }
+
     /**
      * Tiles the habit's life into windows of a fixed length, starting on the day it began. The
      * tiles do not slide: a five in fourteen days habit is measured over the same fortnights every
@@ -124,6 +136,7 @@ public record Expansion(Roster roster, Habit habit, DateRange window, Optional<H
                     case Cadence.PerDay day -> perDay(day.times(), List.of());
                     case Cadence.PerRoleDay roleDay -> perDay(roleDay.times(), roleDay.roles());
                     case Cadence.PerHitch hitch -> perHitch(hitch.times());
+                    case Cadence.PerWeek week -> perWeek(week.times());
                     case Cadence.PerBlock block -> perBlock(block.times(), block.role());
                     case Cadence.PerWindow tiles -> perWindow(tiles.times(), tiles.windowDays());
                 };

@@ -7,13 +7,15 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * How often a habit is owed. Four of the five shapes here are anchored to the rotation rather than
+ * How often a habit is owed. Four of the six shapes here are anchored to the rotation rather than
  * to the calendar, which is the whole point of the thing: "twice on every shift day" and "three
- * times a hitch" are different promises and neither one is a weekly count.
+ * times a hitch" are different promises and neither one is a weekly count. The weekly count is
+ * here as well, for the shore based staff on the same crew who do live on a calendar week.
  */
 public sealed interface Cadence {
 
@@ -21,7 +23,7 @@ public sealed interface Cadence {
     int MIN_WINDOW = 2;
     int MAX_WINDOW = 120;
 
-    /** Which of the five shapes this is. */
+    /** Which of the six shapes this is. */
     CadenceKind kind();
 
     /** How many times the cadence asks for, from 1 to 48. */
@@ -79,6 +81,18 @@ public sealed interface Cadence {
         }
     }
 
+    /** A number of times in every calendar week, Monday to Sunday. */
+    record PerWeek(int times) implements Cadence {
+        public PerWeek {
+            checkTimes(times);
+        }
+
+        @Override
+        public CadenceKind kind() {
+            return CadenceKind.PER_WEEK;
+        }
+    }
+
     /** A number of times in every tile of {@code windowDays} days, from 2 to 120. */
     record PerWindow(int times, int windowDays) implements Cadence {
         public PerWindow {
@@ -121,14 +135,18 @@ public sealed interface Cadence {
         return new PerBlock(role, times);
     }
 
+    static PerWeek perWeek(int times) {
+        return new PerWeek(times);
+    }
+
     static PerWindow perWindow(int times, int windowDays) {
         return new PerWindow(times, windowDays);
     }
 
     /**
      * Reads the short forms people type: "2/day", "1/onshift-day", "1/onshift+standby-day",
-     * "3/hitch", "1/onshift-block", "5/14d". Case and surrounding space do not matter, and "on" and
-     * "off" stand for the shift roles.
+     * "3/hitch", "2/week", "1/onshift-block", "5/14d". Case and surrounding space do not matter,
+     * and "on" and "off" stand for the shift roles. The unit is tried against each form in turn.
      */
     static Cadence parse(String text) {
         String trimmed = Texts.trim(text).toLowerCase(Locale.ROOT);
@@ -138,29 +156,11 @@ public sealed interface Cadence {
         }
         int times = Forms.count(match.group(1));
         String unit = match.group(2);
-        if (unit.equals("day")) {
-            return perDay(times);
-        }
-        if (unit.equals("hitch")) {
-            return perHitch(times);
-        }
-        Matcher window = Forms.WINDOW.matcher(unit);
-        if (window.matches()) {
-            return perWindow(times, Forms.count(window.group(1)));
-        }
-        Matcher roleDay = Forms.ROLE_DAY.matcher(unit);
-        if (roleDay.matches()) {
-            List<DayRole> roles = new ArrayList<>();
-            for (String word : Texts.split(roleDay.group(1), "+")) {
-                if (!word.isEmpty()) {
-                    roles.add(Forms.readRole(word));
-                }
+        for (Forms.Form form : Forms.FORMS) {
+            Matcher read = form.pattern().matcher(unit);
+            if (read.matches()) {
+                return form.build().apply(times, read);
             }
-            return perRoleDay(roles, times);
-        }
-        Matcher block = Forms.BLOCK.matcher(unit);
-        if (block.matches()) {
-            return perBlock(Forms.readRole(block.group(1)), times);
         }
         throw ValidationException.field("cadence", "does not know the unit " + unit);
     }
@@ -174,6 +174,7 @@ public sealed interface Cadence {
                         + String.join(
                                 "+", roleDay.roles().stream().map(DayRole::wire).toList()) + "-day";
             case PerHitch hitch -> hitch.times() + "/hitch";
+            case PerWeek week -> week.times() + "/week";
             case PerBlock block -> block.times() + "/" + block.role() + "-block";
             case PerWindow window -> window.times() + "/" + window.windowDays() + "d";
         };
@@ -193,14 +194,43 @@ public sealed interface Cadence {
         };
     }
 
-    /** The patterns of the short forms. */
+    /** The short forms, each a pattern for the unit and the cadence it reads as. */
     final class Forms {
         private static final Pattern UNIT = Pattern.compile("(\\d+)/(.+)", Pattern.DOTALL);
-        private static final Pattern WINDOW = Pattern.compile("(\\d+)d");
-        private static final Pattern ROLE_DAY = Pattern.compile("([a-z+]+)-day");
-        private static final Pattern BLOCK = Pattern.compile("([a-z]+)-block");
+
+        /**
+         * One way of writing the unit.
+         *
+         * @param pattern what the whole unit has to match
+         * @param build the cadence for a count and the match
+         */
+        record Form(Pattern pattern, BiFunction<Integer, Matcher, Cadence> build) {
+
+            static Form of(String pattern, BiFunction<Integer, Matcher, Cadence> build) {
+                return new Form(Pattern.compile(pattern), build);
+            }
+        }
+
+        static final List<Form> FORMS = List.of(
+                Form.of("day", (times, unit) -> perDay(times)),
+                Form.of("hitch", (times, unit) -> perHitch(times)),
+                Form.of("week", (times, unit) -> perWeek(times)),
+                Form.of("(\\d+)d", (times, unit) -> perWindow(times, count(unit.group(1)))),
+                Form.of("([a-z+]+)-day", (times, unit) -> perRoleDay(readRoles(unit.group(1)), times)),
+                Form.of("([a-z]+)-block", (times, unit) -> perBlock(readRole(unit.group(1)), times)));
 
         private Forms() {}
+
+        /** The roles of a role day unit, written joined by plus signs. */
+        static List<DayRole> readRoles(String words) {
+            List<DayRole> roles = new ArrayList<>();
+            for (String word : Texts.split(words, "+")) {
+                if (!word.isEmpty()) {
+                    roles.add(readRole(word));
+                }
+            }
+            return roles;
+        }
 
         /** Reads a run of digits; one too long for a count reads as a count past every limit. */
         static int count(String digits) {

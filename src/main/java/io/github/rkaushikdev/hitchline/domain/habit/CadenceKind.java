@@ -3,11 +3,12 @@ package io.github.rkaushikdev.hitchline.domain.habit;
 import io.github.rkaushikdev.hitchline.util.WireValue;
 import java.util.Optional;
 
-/** The five shapes of cadence, by the word stored for each. */
+/** The six shapes of cadence, by the word stored for each. */
 public enum CadenceKind implements WireValue {
     PER_DAY("per_day"),
     PER_ROLE_DAY("per_role_day"),
     PER_HITCH("per_hitch"),
+    PER_WEEK("per_week"),
     PER_BLOCK("per_block"),
     PER_WINDOW("per_window");
 

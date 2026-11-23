@@ -107,6 +107,49 @@ class CadenceTest {
         void ignoresCaseAndSurroundingSpace() {
             assertThat(Cadence.parse("  3/HITCH ")).isEqualTo(Cadence.perHitch(3));
         }
+
+        @Test
+        void readsACalendarWeekCadence() {
+            Cadence weekly = Cadence.parse("2/week");
+            assertThat(weekly).isEqualTo(Cadence.perWeek(2));
+            assertThat(weekly.kind()).isEqualTo(CadenceKind.PER_WEEK);
+            assertThat(weekly.format()).isEqualTo("2/week");
+            assertThat(weekly.isRoleBound()).isFalse();
+            assertThat(weekly.rolesTouched()).isEmpty();
+        }
+
+        @Test
+        void holdsAWeeklyCountToTheSameLimits() {
+            assertThatThrownBy(() -> Cadence.parse("0/week")).hasMessageContaining("above zero");
+            assertThatThrownBy(() -> Cadence.perWeek(49)).hasMessageContaining("at most 48");
+        }
+
+        @Test
+        void roundTripsEveryShapeThroughItsShortForm() {
+            for (String written : List.of(
+                    "2/day",
+                    "1/onshift-day",
+                    "1/onshift+standby-day",
+                    "3/hitch",
+                    "2/week",
+                    "1/offshift-block",
+                    "5/14d")) {
+                assertThat(Cadence.parse(written).format()).isEqualTo(written);
+            }
+        }
+
+        @Test
+        void refusesAUnitNoFormReads() {
+            assertThatThrownBy(() -> Cadence.parse("1/fortnight"))
+                    .hasMessageContaining("does not know the unit fortnight");
+            assertThatThrownBy(() -> Cadence.parse("1/ashore-day")).hasMessageContaining("does not name a day role");
+            assertThatThrownBy(() -> Cadence.parse("1/weekly")).hasMessageContaining("does not know the unit");
+        }
+
+        @Test
+        void readsTheWireWordOfTheWeeklyShape() {
+            assertThat(CadenceKind.fromWire("per_week")).contains(CadenceKind.PER_WEEK);
+        }
     }
 
     @Nested

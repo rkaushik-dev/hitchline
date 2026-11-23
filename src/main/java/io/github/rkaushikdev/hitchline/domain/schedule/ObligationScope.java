@@ -8,6 +8,7 @@ public enum ObligationScope implements WireValue {
     DAY("day"),
     BLOCK("block"),
     HITCH("hitch"),
+    WEEK("week"),
     WINDOW("window");
 
     private final String wire;

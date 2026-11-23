@@ -47,6 +47,34 @@ class ExpansionTest {
     }
 
     @Nested
+    class AWeeklyCadence {
+
+        @Test
+        void asksOncePerCalendarWeekFromMondayToSunday() {
+            List<Obligation> entries = expand(
+                    PLAIN, Fixtures.aHabit(o -> o.cadence("2/week").startsOn("2025-01-01")), "2025-01-08..2025-01-21");
+            assertThat(windows(entries))
+                    .containsExactly("2025-01-06..2025-01-12", "2025-01-13..2025-01-19", "2025-01-20..2025-01-26");
+            assertThat(entries).allMatch(entry -> entry.scope() == ObligationScope.WEEK && entry.times() == 2);
+        }
+
+        @Test
+        void clipsTheFirstWeekToTheDayTheHabitStarted() {
+            List<Obligation> entries = expand(
+                    PLAIN, Fixtures.aHabit(o -> o.cadence("1/week").startsOn("2025-01-09")), "2025-01-06..2025-01-12");
+            assertThat(windows(entries)).containsExactly("2025-01-09..2025-01-12");
+        }
+
+        @Test
+        void asksTheSameWhetherOnShiftOrAtHome() {
+            List<Obligation> entries = expand(
+                    PLAIN, Fixtures.aHabit(o -> o.cadence("1/week").startsOn("2025-01-01")), "2025-01-06..2025-02-02");
+            assertThat(entries).hasSize(4);
+            assertThat(entries.get(2).key()).isEqualTo("hab_0123456789ABCDEF:week:2025-01-26");
+        }
+    }
+
+    @Nested
     class ACalendarCadence {
 
         @Test
