@@ -85,6 +85,14 @@ class RosterServiceTest {
         }
 
         @Test
+        void measuresAHeldOverDayOnTheSiteClock() {
+            holdOver();
+            List<RosterDay> days = service.daysFor(ADA, "2025-01-19..2025-01-23");
+            assertThat(days.stream().map(RosterDay::zone))
+                    .containsExactly("Europe/Oslo", "Europe/Oslo", "Europe/Oslo", "Europe/Oslo", "Europe/Lisbon");
+        }
+
+        @Test
         void saysWhereARoleCameFrom() {
             holdOver();
             List<RosterDay> days = service.daysFor(ADA, "2025-01-19..2025-01-21");

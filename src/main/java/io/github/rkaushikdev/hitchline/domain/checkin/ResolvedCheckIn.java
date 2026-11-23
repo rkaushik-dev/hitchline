@@ -1,6 +1,7 @@
 package io.github.rkaushikdev.hitchline.domain.checkin;
 
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
+import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
 import io.github.rkaushikdev.hitchline.domain.rotation.RotationDay;
 import io.github.rkaushikdev.hitchline.domain.rotation.Zoning;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
@@ -27,11 +28,20 @@ public record ResolvedCheckIn(CheckIn checkIn, RotationDay day) {
     public static final long REPEAT_TAP_MS = 2 * 60_000L;
 
     public static ResolvedCheckIn resolve(CrewMember member, CheckIn entry) {
-        return new ResolvedCheckIn(entry, Zoning.rotationDayAt(member, entry.at()));
+        return resolve(Roster.of(member), entry);
+    }
+
+    /** The check in placed on its day of the roster, so a held over day keeps the site clock. */
+    public static ResolvedCheckIn resolve(Roster roster, CheckIn entry) {
+        return new ResolvedCheckIn(entry, Zoning.rotationDayAt(roster, entry.at()));
     }
 
     public static List<ResolvedCheckIn> resolveAll(CrewMember member, List<CheckIn> entries) {
-        return entries.stream().map(entry -> resolve(member, entry)).toList();
+        return resolveAll(Roster.of(member), entries);
+    }
+
+    public static List<ResolvedCheckIn> resolveAll(Roster roster, List<CheckIn> entries) {
+        return entries.stream().map(entry -> resolve(roster, entry)).toList();
     }
 
     public static List<ResolvedCheckIn> onDate(List<ResolvedCheckIn> resolved, CivilDate date) {

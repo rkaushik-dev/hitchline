@@ -123,7 +123,7 @@ public final class RosterService {
                     date,
                     effective.role(),
                     effective.source(),
-                    Zoning.zoneOn(target.member(), date).zone()));
+                    Zoning.zoneOn(target, date).zone()));
         }
         return days;
     }

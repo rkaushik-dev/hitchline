@@ -49,7 +49,7 @@ public final class NudgePlanner {
         if (ClockTime.compare(allowed, wanted) < 0) {
             return Optional.empty();
         }
-        Instant at = Zones.zonedInstant(Zoning.zoneOn(roster.member(), date).zone(), date, allowed);
+        Instant at = Zones.zonedInstant(Zoning.zoneOn(roster, date).zone(), date, allowed);
         if (at.isBefore(asOf)) {
             return Optional.empty();
         }

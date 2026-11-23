@@ -12,6 +12,8 @@ import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.checkin.CheckIn;
 import io.github.rkaushikdev.hitchline.domain.checkin.CheckInSource;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import io.github.rkaushikdev.hitchline.domain.time.Zones;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
@@ -129,6 +131,25 @@ class CheckInsServiceTest {
             RecordResult retry = record(once);
             assertThat(retry.accepted()).isFalse();
             assertThat(retry.entry()).isEqualTo(stored);
+        }
+    }
+
+    @Nested
+    class CheckInsOnAHeldOverDay {
+
+        @Test
+        void listThemOnTheSiteClock() {
+            new RosterService(store)
+                    .hold(new RosterService.HoldCommand(
+                            ADA,
+                            "2025-01-20..2025-01-22",
+                            DayRole.ONSHIFT,
+                            OverrideReason.HELD_OVER,
+                            Optional.empty()));
+            clock.set(Zones.parseInstant("2025-01-23T09:00:00Z"));
+            record(treadmill().withAt("2025-01-21T06:00:00Z"));
+            assertThat(service.listFor(ADA).get(0).day().zone()).isEqualTo("Europe/Oslo");
+            assertThat(service.listFor(ADA).get(0).day().role().wire()).isEqualTo("onshift");
         }
     }
 

@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
+import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import io.github.rkaushikdev.hitchline.domain.time.Zones;
 import io.github.rkaushikdev.hitchline.support.Fixtures;
+import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -13,6 +15,56 @@ class ZoningTest {
 
     private static CivilDate d(String text) {
         return CivilDate.parse(text);
+    }
+
+    @Nested
+    class AHeldOverRoster {
+
+        private final CrewMember ada = Fixtures.aMember();
+        private final Roster held = Roster.of(
+                ada,
+                List.of(RosterOverride.of(
+                        ada.id(),
+                        DateRange.parse("2025-01-20..2025-01-22"),
+                        DayRole.ONSHIFT,
+                        OverrideReason.HELD_OVER,
+                        Zones.parseInstant("2025-01-18T10:00:00Z"))));
+
+        @Test
+        void measuresADayHeldOverOnTheSiteClock() {
+            assertThat(Zoning.zoneOn(held, d("2025-01-21"))).isEqualTo(new ZoneChoice("Europe/Oslo", ZoneReason.SITE));
+            assertThat(Zoning.zoneOn(ada, d("2025-01-21"))).isEqualTo(new ZoneChoice("Europe/Lisbon", ZoneReason.HOME));
+        }
+
+        @Test
+        void putsALateCheckInOnAHeldOverDayOnTheDayItHappenedOffshore() {
+            // 23:30 in Oslo is 22:30 in Lisbon on the same date, so only the role and the clock differ.
+            RotationDay day = Zoning.rotationDayAt(held, Zones.parseInstant("2025-01-21T22:30:00Z"));
+            assertThat(day.date()).isEqualTo(d("2025-01-21"));
+            assertThat(day.role()).isEqualTo(DayRole.ONSHIFT);
+            assertThat(day.zone()).isEqualTo("Europe/Oslo");
+            assertThat(day.reason()).isEqualTo(ZoneReason.SITE);
+        }
+
+        @Test
+        void readsTheDayAfterTheHoldBackOnTheHomeClock() {
+            assertThat(Zoning.rotationDayOn(held, d("2025-01-23")).zone()).isEqualTo("Europe/Lisbon");
+            assertThat(Zoning.rotationDayOn(held, d("2025-01-22")).role()).isEqualTo(DayRole.ONSHIFT);
+        }
+
+        @Test
+        void readsATravelDayTheClerkMovedTowardsWhereItLeads() {
+            Roster flying = Roster.of(
+                    ada,
+                    List.of(RosterOverride.of(
+                            ada.id(),
+                            DateRange.parse("2025-02-02..2025-02-02"),
+                            DayRole.TRAVEL,
+                            OverrideReason.SWAPPED,
+                            Zones.parseInstant("2025-01-18T10:00:00Z"))));
+            assertThat(Zoning.zoneOn(flying, d("2025-02-02")))
+                    .isEqualTo(new ZoneChoice("Europe/Oslo", ZoneReason.OUTBOUND));
+        }
     }
 
     @Nested

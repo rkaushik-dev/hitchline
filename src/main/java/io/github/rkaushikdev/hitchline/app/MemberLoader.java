@@ -35,9 +35,10 @@ public final class MemberLoader {
         List<CheckIn> live = ports.checkIns().byMember(memberId).stream()
                 .filter(entry -> !entry.isVoided())
                 .toList();
-        List<ResolvedCheckIn> counted = ResolvedCheckIn.withoutRepeatTaps(ResolvedCheckIn.resolveAll(member, live));
+        Roster roster = Roster.of(member, ports.overrides().byMember(memberId));
+        List<ResolvedCheckIn> counted = ResolvedCheckIn.withoutRepeatTaps(ResolvedCheckIn.resolveAll(roster, live));
         return new LoadedMember(
-                Roster.of(member, ports.overrides().byMember(memberId)),
+                roster,
                 ports.habits().byMember(memberId),
                 counted,
                 ports.shields().byMember(memberId),

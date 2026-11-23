@@ -11,6 +11,7 @@ import io.github.rkaushikdev.hitchline.domain.checkin.ResolvedCheckIn;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.habit.Habit;
 import io.github.rkaushikdev.hitchline.domain.habit.TargetUnit;
+import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
 import io.github.rkaushikdev.hitchline.domain.rotation.RotationDay;
 import io.github.rkaushikdev.hitchline.domain.rotation.Zoning;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
@@ -197,7 +198,8 @@ public final class CheckInsService {
             return;
         }
         TargetUnit unit = habit.target().get().unit();
-        RotationDay day = Zoning.rotationDayAt(member, at);
+        Roster roster = Roster.of(member, ports.overrides().byMember(member.id()));
+        RotationDay day = Zoning.rotationDayAt(roster, at);
         OptionalDouble ceiling = unit.dayCeiling(Zones.dayLengthMinutes(day.zone(), day.date()));
         if (ceiling.isEmpty()) {
             return;
@@ -214,7 +216,7 @@ public final class CheckInsService {
         if (repeat) {
             return;
         }
-        double already = ResolvedCheckIn.withoutRepeatTaps(ResolvedCheckIn.resolveAll(member, live)).stream()
+        double already = ResolvedCheckIn.withoutRepeatTaps(ResolvedCheckIn.resolveAll(roster, live)).stream()
                 .filter(item -> item.day().date().equals(day.date()))
                 .mapToDouble(item -> item.checkIn().reading().orElse(0))
                 .sum();
@@ -238,6 +240,6 @@ public final class CheckInsService {
                 ? ports.checkIns().byMember(memberId)
                 : ports.checkIns().byMember(memberId, window.get());
         List<CheckIn> live = rows.stream().filter(entry -> !entry.isVoided()).toList();
-        return ResolvedCheckIn.resolveAll(member, live);
+        return ResolvedCheckIn.resolveAll(Roster.of(member, ports.overrides().byMember(memberId)), live);
     }
 }
