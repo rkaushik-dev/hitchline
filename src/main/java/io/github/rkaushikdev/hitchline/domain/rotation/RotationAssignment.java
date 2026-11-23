@@ -120,20 +120,7 @@ public record RotationAssignment(RotationPattern pattern, CivilDate anchor, int 
 
     /** Splits a range into the runs of same role days it is made of, clipping the ends. */
     public List<RoleBlock> blocksOver(DateRange range) {
-        List<RoleBlock> blocks = new ArrayList<>();
-        CivilDate cursor = range.from();
-        while (!cursor.isAfter(range.to())) {
-            RoleBlock block = blockContaining(cursor);
-            CivilDate from = block.range().from().isBefore(range.from())
-                    ? range.from()
-                    : block.range().from();
-            CivilDate to = block.range().to().isAfter(range.to())
-                    ? range.to()
-                    : block.range().to();
-            blocks.add(new RoleBlock(block.role(), DateRange.of(from, to)));
-            cursor = block.range().to().plusDays(1);
-        }
-        return blocks;
+        return RoleBlock.runsOf(range.from(), rolesOver(range));
     }
 
     /** One line for a log, such as {@code 2 segment cycle anchored 2025-01-06 phase 0}. */

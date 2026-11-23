@@ -3,7 +3,6 @@ package io.github.rkaushikdev.hitchline.domain.rotation;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,24 +54,7 @@ public record Roster(CrewMember member, List<RosterOverride> overrides) {
      * than two blocks that happen to touch.
      */
     public List<RoleBlock> effectiveBlocks(DateRange range) {
-        if (RosterOverride.overridesOver(overrides, member.id(), range).isEmpty()) {
-            return member.rotation().blocksOver(range);
-        }
-        List<RoleBlock> blocks = new ArrayList<>();
-        for (CivilDate date : range.days()) {
-            DayRole role = roleFor(date);
-            if (!blocks.isEmpty()) {
-                RoleBlock last = blocks.get(blocks.size() - 1);
-                if (last.role() == role) {
-                    blocks.set(
-                            blocks.size() - 1,
-                            new RoleBlock(role, DateRange.of(last.range().from(), date)));
-                    continue;
-                }
-            }
-            blocks.add(new RoleBlock(role, DateRange.singleDay(date)));
-        }
-        return blocks;
+        return RoleBlock.runsOf(range.from(), rolesFor(range));
     }
 
     public int countRoleFor(DateRange range, DayRole role) {

@@ -43,22 +43,7 @@ public record RoleCalendar(DateRange window, List<DayRole> roles) {
 
     /** The runs of same role days inside the calendar, in order. */
     public List<RoleBlock> blocks() {
-        List<RoleBlock> blocks = new ArrayList<>();
-        for (int offset = 0; offset < roles.size(); offset += 1) {
-            DayRole role = roles.get(offset);
-            CivilDate date = window.from().plusDays(offset);
-            if (!blocks.isEmpty()) {
-                RoleBlock last = blocks.get(blocks.size() - 1);
-                if (last.role() == role) {
-                    blocks.set(
-                            blocks.size() - 1,
-                            new RoleBlock(role, DateRange.of(last.range().from(), date)));
-                    continue;
-                }
-            }
-            blocks.add(new RoleBlock(role, DateRange.singleDay(date)));
-        }
-        return blocks;
+        return RoleBlock.runsOf(window.from(), roles);
     }
 
     public int countIn(DayRole role) {
