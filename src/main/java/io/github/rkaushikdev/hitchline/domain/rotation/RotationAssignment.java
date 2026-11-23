@@ -42,6 +42,27 @@ public record RotationAssignment(RotationPattern pattern, CivilDate anchor, int 
         return new RotationAssignment(pattern, anchor, phase, Optional.of(effective));
     }
 
+    /**
+     * Pins a pattern so that {@code crewChange} is the first day of a trip. A crewing office knows
+     * the day somebody flies out far better than how far into the cycle a date happens to be.
+     */
+    public static RotationAssignment fromCrewChange(RotationPattern pattern, CivilDate crewChange) {
+        return of(pattern, crewChange, tripStartIndex(pattern));
+    }
+
+    /**
+     * Where in the cycle a trip starts: the first day away from home that follows a day at home.
+     * A cycle with no day at home in it starts at zero.
+     */
+    public static int tripStartIndex(RotationPattern pattern) {
+        for (int index = 0; index < pattern.cycleLength(); index += 1) {
+            if (DutyLimits.isAway(pattern.roleAtIndex(index)) && !DutyLimits.isAway(pattern.roleAtIndex(index - 1L))) {
+                return index;
+            }
+        }
+        return 0;
+    }
+
     public boolean isActiveOn(CivilDate date) {
         return effective.map(window -> window.contains(date)).orElse(true);
     }

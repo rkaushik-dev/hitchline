@@ -14,6 +14,8 @@ import io.github.rkaushikdev.hitchline.domain.ErrorDetail;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
 import io.github.rkaushikdev.hitchline.infra.IdSources;
 import io.github.rkaushikdev.hitchline.infra.store.MemoryStore;
@@ -137,6 +139,34 @@ class CliMemberTest {
             assertThat(code).isEqualTo(Context.EXIT_OK);
             assertThat(store.members().all()).hasSize(1);
             assertThat(context.text()).contains("Ada Vasquez");
+        }
+
+        @Test
+        void pinsTheRotaOnTheDaySomebodyFliesOut() {
+            int code = run(
+                    "member",
+                    "add",
+                    "--name",
+                    "Ada Vasquez",
+                    "--pattern",
+                    "2standby 12on 14off",
+                    "--crew-change",
+                    "2025-03-03");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            CrewMember ada = store.members().all().get(0);
+            assertThat(ada.rotation().roleOn(CivilDate.parse("2025-03-02"))).isEqualTo(DayRole.STANDBY);
+            assertThat(ada.rotation().roleOn(CivilDate.parse("2025-03-03"))).isEqualTo(DayRole.ONSHIFT);
+            assertThat(ada.rotation().phase()).isEqualTo(2);
+        }
+
+        @Test
+        void wantsEitherAnAnchorOrACrewChangeButNotBoth() {
+            String[] base = {"member", "add", "--name", "Ada Vasquez", "--pattern", "14/14"};
+            assertThat(run(base)).isEqualTo(Context.EXIT_MISUSED);
+            assertThat(context.errorText()).contains("give either --anchor or --crew-change");
+            assertThat(run(concat(base, "--anchor", "2025-01-06", "--crew-change", "2025-01-06")))
+                    .isEqualTo(Context.EXIT_MISUSED);
+            assertThat(store.members().all()).isEmpty();
         }
 
         @Test

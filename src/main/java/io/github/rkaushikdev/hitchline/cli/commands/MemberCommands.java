@@ -8,6 +8,7 @@ import io.github.rkaushikdev.hitchline.cli.Context;
 import io.github.rkaushikdev.hitchline.cli.Render;
 import io.github.rkaushikdev.hitchline.domain.IdKind;
 import io.github.rkaushikdev.hitchline.domain.Ids;
+import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
@@ -58,12 +59,14 @@ public final class MemberCommands {
                 description = "rotation pattern such as 14/14")
         private String pattern;
 
-        @Option(
-                names = "--anchor",
-                required = true,
-                paramLabel = "<date>",
-                description = "the date the cycle starts on")
+        @Option(names = "--anchor", paramLabel = "<date>", description = "the date the cycle starts on")
         private String anchor;
+
+        @Option(
+                names = "--crew-change",
+                paramLabel = "<date>",
+                description = "a day they fly out, in place of an anchor and phase")
+        private String crewChange;
 
         @Option(names = "--home", paramLabel = "<zone>", description = "home timezone", defaultValue = "UTC")
         private String home;
@@ -86,13 +89,24 @@ public final class MemberCommands {
         void run(Context ctx) {
             String id = Ids.crewMemberId(ctx.ports().ids().next(IdKind.CREW_MEMBER));
             CivilDate joinedOn = Zones.civilDateIn(site, ctx.ports().clock().now());
-            RotationAssignment rotation = RotationAssignment.of(
-                    RotationPattern.parse(pattern),
-                    CivilDate.parse(anchor),
-                    Arguments.wholeNumber(phase, "phase", "must be a whole number of days into the cycle"));
-            CrewMember member = CrewMember.of(id, name, home, site, rotation, joinedOn);
+            CrewMember member = CrewMember.of(id, name, home, site, rotation(), joinedOn);
             ctx.ports().members().save(member);
             ctx.out(member.id() + "  " + member.displayName());
+        }
+
+        /** Pinned on the anchor and phase, or on the crew change day; exactly one has to be given. */
+        private RotationAssignment rotation() {
+            if ((anchor == null) == (crewChange == null)) {
+                throw ValidationException.field("anchor", "give either --anchor or --crew-change");
+            }
+            RotationPattern parsed = RotationPattern.parse(pattern);
+            if (crewChange != null) {
+                return RotationAssignment.fromCrewChange(parsed, CivilDate.parse(crewChange));
+            }
+            return RotationAssignment.of(
+                    parsed,
+                    CivilDate.parse(anchor),
+                    Arguments.wholeNumber(phase, "phase", "must be a whole number of days into the cycle"));
         }
     }
 

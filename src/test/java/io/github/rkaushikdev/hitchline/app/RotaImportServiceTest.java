@@ -8,6 +8,8 @@ import io.github.rkaushikdev.hitchline.app.RotaImportService.RotaOptions;
 import io.github.rkaushikdev.hitchline.app.RotaImportService.RotaReport;
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
 import io.github.rkaushikdev.hitchline.infra.IdSources;
 import io.github.rkaushikdev.hitchline.infra.store.MemoryStore;
@@ -137,6 +139,41 @@ class RotaImportServiceTest {
             RotaReport report = service.rota(file(ADA_LINE, BO_LINE), new RotaOptions(true, Optional.empty()));
             assertThat(report.added()).isEqualTo(2);
             assertThat(store.members().all()).isEmpty();
+        }
+    }
+
+    @Nested
+    class CrewChangeDays {
+
+        private static final String CREW_CHANGE_HEADER = "id,name,site,pattern,crew_change";
+
+        @Test
+        void pinsALineOnTheDaySomebodyFliesOut() {
+            RotaReport report = service.rota(
+                    CREW_CHANGE_HEADER + "\n" + ADA + ",Ada Vasquez,Europe/Oslo,1travel 13on 14off,2025-02-17\n");
+            assertThat(report.added()).isEqualTo(1);
+            assertThat(ada().rotation().roleOn(CivilDate.parse("2025-02-17"))).isEqualTo(DayRole.TRAVEL);
+            assertThat(ada().rotation().roleOn(CivilDate.parse("2025-02-16"))).isEqualTo(DayRole.OFFSHIFT);
+        }
+
+        @Test
+        void readsTheCrewChangeOverTheAnchorWhenALineHasBoth() {
+            service.rota("id,name,pattern,anchor,phase,crew_change\n" + ADA
+                    + ",Ada Vasquez,14/14,2025-01-06,3,2025-01-08\n");
+            assertThat(ada().rotation().anchor()).isEqualTo(CivilDate.parse("2025-01-08"));
+            assertThat(ada().rotation().phase()).isZero();
+        }
+
+        @Test
+        void fallsBackToTheAnchorWhenTheCrewChangeIsBlank() {
+            service.rota("id,name,pattern,anchor,phase,crew_change\n" + ADA + ",Ada Vasquez,14/14,2025-01-06,3,\n");
+            assertThat(ada().rotation().phase()).isEqualTo(3);
+        }
+
+        @Test
+        void refusesAFileWithNeitherColumn() {
+            assertThatThrownBy(() -> service.rota("id,name,pattern\n" + ADA + ",Ada Vasquez,14/14\n"))
+                    .hasMessageContaining("needs an anchor or a crew_change column");
         }
     }
 

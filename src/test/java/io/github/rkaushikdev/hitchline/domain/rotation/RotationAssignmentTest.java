@@ -28,6 +28,42 @@ class RotationAssignmentTest {
     }
 
     @Nested
+    class CrewChangeDays {
+
+        @Test
+        void startsAFortnightEachWayAtTheTopOfTheCycle() {
+            RotationAssignment assignment =
+                    RotationAssignment.fromCrewChange(RotationPattern.parse("14/14"), CivilDate.parse("2025-03-03"));
+            assertThat(assignment.phase()).isZero();
+            assertThat(assignment.roleOn(CivilDate.parse("2025-03-03"))).isEqualTo(DayRole.ONSHIFT);
+        }
+
+        @Test
+        void startsTheTripOnTheTravelDayWhenThePatternHasOne() {
+            assertThat(RotationAssignment.tripStartIndex(RotationPattern.parse("1travel 13on 1travel 13off")))
+                    .isZero();
+            assertThat(RotationAssignment.tripStartIndex(RotationPattern.parse("13off 1travel 13on 1travel")))
+                    .isEqualTo(13);
+        }
+
+        @Test
+        void stepsOverHomeDaysAtTheStartOfTheCycle() {
+            RotationPattern pattern = RotationPattern.parse("2standby 5on 2off");
+            RotationAssignment assignment = RotationAssignment.fromCrewChange(pattern, CivilDate.parse("2025-03-03"));
+            assertThat(assignment.phase()).isEqualTo(2);
+            assertThat(assignment.roleOn(CivilDate.parse("2025-03-02"))).isEqualTo(DayRole.STANDBY);
+            assertThat(assignment.roleOn(CivilDate.parse("2025-03-07"))).isEqualTo(DayRole.ONSHIFT);
+            assertThat(assignment.roleOn(CivilDate.parse("2025-03-08"))).isEqualTo(DayRole.OFFSHIFT);
+        }
+
+        @Test
+        void startsACycleWithNoHomeDaysAtZero() {
+            assertThat(RotationAssignment.tripStartIndex(RotationPattern.parse("3on 2travel")))
+                    .isZero();
+        }
+    }
+
+    @Nested
     class Construction {
 
         @Test
