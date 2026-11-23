@@ -119,6 +119,39 @@ class CliCrewTest {
         }
 
         @Test
+        void marksTheMembersOwedTooLittleToRank() {
+            run("demo", "seed", "--days", "14", "--adherence", "1");
+            String crewId = firstCrew();
+            String lead = firstMember();
+            context.clear();
+            int code = run(
+                    "crew",
+                    "compare",
+                    crewId,
+                    lead,
+                    "--window",
+                    "2025-01-06..2025-01-19",
+                    "--on",
+                    "2025-01-10",
+                    "--min-owed",
+                    "100");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            assertThat(context.text()).contains("Ada Vasquez (too little to rank)");
+            assertThat(run(
+                            "crew",
+                            "compare",
+                            crewId,
+                            lead,
+                            "--window",
+                            "2025-01-06..2025-01-19",
+                            "--on",
+                            "2025-01-10",
+                            "--min-owed",
+                            "some"))
+                    .isEqualTo(Context.EXIT_MISUSED);
+        }
+
+        @Test
         void reportsACrewItDoesNotHold() {
             int code = run("crew", "members", "crw_9999999999999999", "--on", "2025-01-10");
             assertThat(code).isEqualTo(Context.EXIT_OK);

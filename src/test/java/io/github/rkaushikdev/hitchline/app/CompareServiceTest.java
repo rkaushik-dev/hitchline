@@ -168,6 +168,67 @@ class CompareServiceTest {
     }
 
     @Nested
+    class TooLittleToRank {
+
+        @BeforeEach
+        void openBosHabitToTheCrew() {
+            new CrewService(store).setVisibility(BO, Visibility.CREW);
+            CheckInsService checkIns = new CheckInsService(store);
+            for (String day : new String[] {"2025-01-06", "2025-01-07", "2025-01-08"}) {
+                checkIns.record(RecordCheckInCommand.of(STRETCHES)
+                        .withAt(day + "T09:00:00Z")
+                        .withSource(CheckInSource.SUPERVISOR));
+            }
+        }
+
+        @Test
+        void ranksEverybodyWhenNoLeastIsGiven() {
+            CrewComparison report = service.crew(ADA, alpha, "2025-01-06..2025-01-08", "2025-01-20");
+            assertThat(report.lines()).allMatch(CrewLine::ranked);
+            assertThat(report.lines().get(0).memberId()).isEqualTo(BO);
+        }
+
+        @Test
+        void listsSomebodyOwedTooLittleAfterTheRankedAndLeavesThemOutOfTheCrewRate() {
+            CrewComparison report = service.crew(ADA, alpha, "2025-01-06..2025-01-08", "2025-01-20", 3);
+            assertThat(report.lines()).extracting(CrewLine::ranked).containsExactly(true, true);
+            CrewComparison strict = service.crew(ADA, alpha, "2025-01-06..2025-01-19", "2025-01-20", 15);
+            assertThat(strict.lines()).noneMatch(CrewLine::ranked);
+            assertThat(strict.rate()).isEqualTo(1.0);
+        }
+
+        @Test
+        void putsTheRankedFirstWhateverTheirRate() {
+            new RosterService(store)
+                    .shieldDays(new ShieldCommand(
+                            BO,
+                            "2025-01-09..2025-01-19",
+                            ShieldReason.ANNUAL_LEAVE,
+                            Optional.empty(),
+                            Optional.empty()));
+            CrewComparison report = service.crew(ADA, alpha, WINDOW, "2025-01-20", 5);
+            assertThat(lineOf(report, BO).owed()).isEqualTo(3);
+            assertThat(lineOf(report, BO).ranked()).isFalse();
+            assertThat(report.lines()).extracting(CrewLine::memberId).containsExactly(ADA, BO);
+            assertThat(report.rate()).isCloseTo(2.0 / 14, within(1e-9));
+        }
+
+        @Test
+        void ratesTheCrewOnWhatHasSettledLikeEachLine() {
+            CrewComparison report = service.crew(ADA, alpha, "2025-01-06..2025-01-25", "2025-01-20");
+            int settled = report.lines().stream().mapToInt(CrewLine::settled).sum();
+            int met = report.lines().stream().mapToInt(CrewLine::met).sum();
+            assertThat(report.rate()).isCloseTo(met / (double) settled, within(1e-9));
+        }
+
+        @Test
+        void refusesANegativeLeast() {
+            assertThatThrownBy(() -> service.crew(ADA, alpha, WINDOW, "2025-01-20", -1))
+                    .hasMessageContaining("zero or more");
+        }
+    }
+
+    @Nested
     class BadRequests {
 
         @Test

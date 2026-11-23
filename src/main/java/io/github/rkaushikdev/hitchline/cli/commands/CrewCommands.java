@@ -152,7 +152,7 @@ public final class CrewCommands {
     }
 
     private static final List<Column<CrewLine>> LINE_COLUMNS = List.of(
-            Column.left("name", CrewLine::displayName),
+            Column.left("name", row -> row.ranked() ? row.displayName() : row.displayName() + " (too little to rank)"),
             Column.right("owed", row -> Integer.toString(row.owed())),
             Column.right("met", row -> Integer.toString(row.met())),
             Column.right("partial", row -> Integer.toString(row.partial())),
@@ -181,14 +181,22 @@ public final class CrewCommands {
         @Option(names = "--on", required = true, paramLabel = "<date>", description = "the day to read membership as")
         private String on;
 
+        @Option(
+                names = "--min-owed",
+                paramLabel = "<count>",
+                description = "rank only members owed at least this many",
+                defaultValue = "0")
+        private String minOwed;
+
         Compare(Supplier<Context> context) {
             super(context);
         }
 
         @Override
         void run(Context ctx) {
+            int least = Arguments.wholeNumber(minOwed, "minOwed", "must be a whole number");
             CrewComparison report =
-                    new CompareService(ctx.ports()).crew(Ids.crewMemberId(viewer), Ids.crewId(crew), window, on);
+                    new CompareService(ctx.ports()).crew(Ids.crewMemberId(viewer), Ids.crewId(crew), window, on, least);
             ctx.out(Render.renderTable(report.lines(), LINE_COLUMNS));
             ctx.out("");
             ctx.out(Render.keyValues(
