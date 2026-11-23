@@ -45,6 +45,29 @@ class FrozenStreakTest {
     }
 
     @Nested
+    class WritingTheBudget {
+
+        @Test
+        void readsAllowanceOverDays() {
+            assertThat(FreezeBudget.parse("2/56")).isEqualTo(FreezeBudget.of(2, 56));
+            assertThat(FreezeBudget.parse(" 1/28 ")).isEqualTo(FreezeBudget.DEFAULT);
+            assertThat(FreezeBudget.DEFAULT.format()).isEqualTo("1/28");
+        }
+
+        @Test
+        void refusesABudgetItCannotRead() {
+            assertThatThrownBy(() -> FreezeBudget.parse("one a month")).hasMessageContaining("must look like 1/28");
+            assertThatThrownBy(() -> FreezeBudget.parse("1/")).hasMessageContaining("must look like 1/28");
+        }
+
+        @Test
+        void holdsAWrittenBudgetToTheSameLimits() {
+            assertThatThrownBy(() -> FreezeBudget.parse("11/28")).hasMessageContaining("from 0 to 10");
+            assertThatThrownBy(() -> FreezeBudget.parse("1/400")).hasMessageContaining("from 1 to 365");
+        }
+    }
+
+    @Nested
     class CarryingARunOverAMiss {
 
         @Test

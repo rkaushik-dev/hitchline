@@ -169,6 +169,32 @@ class CliReportTest {
         }
 
         @Test
+        void carriesAMissOnTheFreezesItIsGiven() {
+            int code =
+                    run("report", "streak", ADA, TREADMILL, "--window", "2025-01-06..2025-01-08", "--freezes", "1/28");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            String text = context.text();
+            assertThat(text).containsPattern("current +2");
+            assertThat(text).containsPattern("carried +1");
+            assertThat(text).containsPattern("freezes left +0 of 1/28");
+        }
+
+        @Test
+        void refusesAFreezeBudgetItCannotRead() {
+            assertThat(run(
+                            "report",
+                            "streak",
+                            ADA,
+                            TREADMILL,
+                            "--window",
+                            "2025-01-06..2025-01-08",
+                            "--freezes",
+                            "lots"))
+                    .isEqualTo(Context.EXIT_MISUSED);
+            assertThat(context.errorText()).contains("must look like 1/28");
+        }
+
+        @Test
         void showsAShieldedGap() {
             new RosterService(store)
                     .shieldDays(new ShieldCommand(

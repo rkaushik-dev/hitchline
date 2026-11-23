@@ -11,6 +11,8 @@ import io.github.rkaushikdev.hitchline.app.RosterService.ShieldCommand;
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus;
+import io.github.rkaushikdev.hitchline.domain.adherence.FreezeBudget;
+import io.github.rkaushikdev.hitchline.domain.adherence.FrozenStreak;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestHoursRule;
@@ -266,6 +268,22 @@ class AdherenceServiceTest {
             StreakSummary summary = service.streak(ADA, TREADMILL, "2025-01-12..2025-01-16");
             assertThat(summary.current()).isEqualTo(2);
             assertThat(summary.shielded()).isEqualTo(3);
+        }
+
+        @Test
+        void carriesAMissWhenGivenAFreezeBudget() {
+            for (String day : List.of("2025-01-06", "2025-01-07", "2025-01-09")) {
+                checkInOn(day);
+            }
+            assertThat(service.streak(ADA, TREADMILL, "2025-01-06..2025-01-09").current())
+                    .isEqualTo(1);
+            FrozenStreak carried = service.frozenStreak(ADA, TREADMILL, "2025-01-06..2025-01-09", FreezeBudget.DEFAULT);
+            assertThat(carried.current()).isEqualTo(3);
+            assertThat(carried.frozen()).isEqualTo(1);
+            assertThat(carried.freezesLeft()).isZero();
+            assertThat(service.frozenStreak(ADA, TREADMILL, "2025-01-06..2025-01-09", FreezeBudget.of(0, 28))
+                            .current())
+                    .isEqualTo(1);
         }
 
         @Test

@@ -3,6 +3,8 @@ package io.github.rkaushikdev.hitchline.app;
 import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus;
 import io.github.rkaushikdev.hitchline.domain.adherence.Analytics;
+import io.github.rkaushikdev.hitchline.domain.adherence.FreezeBudget;
+import io.github.rkaushikdev.hitchline.domain.adherence.FrozenStreak;
 import io.github.rkaushikdev.hitchline.domain.adherence.HabitSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.HourBucket;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
@@ -90,10 +92,18 @@ public final class AdherenceService {
 
     /** The run of one habit over a window. */
     public StreakSummary streak(String memberId, String habitId, String window) {
-        DateRange range = DateRange.parse(window);
         LoadedMember loaded = loader.load(memberId);
-        List<ObligationResult> results = loader.scoreOne(loaded, loaded.habitOf(habitId), range);
-        return StreakSummary.compute(results, loaded.shields(), memberId);
+        return StreakSummary.compute(scoredHabit(loaded, habitId, window), loaded.shields(), memberId);
+    }
+
+    /** The run of one habit over a window, carrying as many misses as {@code budget} allows. */
+    public FrozenStreak frozenStreak(String memberId, String habitId, String window, FreezeBudget budget) {
+        LoadedMember loaded = loader.load(memberId);
+        return FrozenStreak.compute(scoredHabit(loaded, habitId, window), loaded.shields(), memberId, budget);
+    }
+
+    private List<ObligationResult> scoredHabit(LoadedMember loaded, String habitId, String window) {
+        return loader.scoreOne(loaded, loaded.habitOf(habitId), DateRange.parse(window));
     }
 
     /**

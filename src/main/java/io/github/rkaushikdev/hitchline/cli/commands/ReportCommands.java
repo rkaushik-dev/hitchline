@@ -7,6 +7,8 @@ import io.github.rkaushikdev.hitchline.cli.Column;
 import io.github.rkaushikdev.hitchline.cli.Context;
 import io.github.rkaushikdev.hitchline.cli.Render;
 import io.github.rkaushikdev.hitchline.domain.Ids;
+import io.github.rkaushikdev.hitchline.domain.adherence.FreezeBudget;
+import io.github.rkaushikdev.hitchline.domain.adherence.FrozenStreak;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.RestBreach;
@@ -17,6 +19,7 @@ import io.github.rkaushikdev.hitchline.domain.nudge.PlannedNudge;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.Zones;
 import io.github.rkaushikdev.hitchline.util.Texts;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,18 +48,30 @@ public final class ReportCommands {
                 new ReportNudges(context));
     }
 
-    @Command(name = "adherence", description = "how a window went", showDefaultValues = true)
-    static final class ReportAdherence extends ContextCommand {
+    /** What every report takes: whose it is and the window it reads. */
+    abstract static class MemberReport extends ContextCommand {
 
         @Parameters(index = "0", paramLabel = "<memberId>")
-        private String memberId;
+        String memberId;
 
         @Option(
                 names = "--window",
                 required = true,
                 paramLabel = "<window>",
                 description = "window such as 2025-01-06..2025-01-19")
-        private String window;
+        String window;
+
+        MemberReport(Supplier<Context> context) {
+            super(context);
+        }
+
+        String member() {
+            return Ids.crewMemberId(memberId);
+        }
+    }
+
+    @Command(name = "adherence", description = "how a window went", showDefaultValues = true)
+    static final class ReportAdherence extends MemberReport {
 
         @Option(names = "--by-hitch", description = "break it down by turn of the rotation")
         private boolean byHitch;
@@ -76,7 +91,7 @@ public final class ReportCommands {
 
         @Override
         void run(Context ctx) {
-            String id = Ids.crewMemberId(memberId);
+            String id = member();
             AdherenceService service = new AdherenceService(ctx.ports());
             AdherenceReport report = service.report(id, window);
             ctx.out(Render.heading("adherence for " + memberId));
@@ -123,13 +138,7 @@ public final class ReportCommands {
     }
 
     @Command(name = "open", description = "what is still open in a window")
-    static final class ReportOpen extends ContextCommand {
-
-        @Parameters(index = "0", paramLabel = "<memberId>")
-        private String memberId;
-
-        @Option(names = "--window", required = true, paramLabel = "<window>", description = "window to look at")
-        private String window;
+    static final class ReportOpen extends MemberReport {
 
         ReportOpen(Supplier<Context> context) {
             super(context);
@@ -137,22 +146,22 @@ public final class ReportCommands {
 
         @Override
         void run(Context ctx) {
-            List<ObligationResult> open = new AdherenceService(ctx.ports()).open(Ids.crewMemberId(memberId), window);
+            List<ObligationResult> open = new AdherenceService(ctx.ports()).open(member(), window);
             ctx.out(Render.renderTable(open, resultColumns()));
         }
     }
 
     @Command(name = "streak", description = "the run on one habit")
-    static final class ReportStreak extends ContextCommand {
-
-        @Parameters(index = "0", paramLabel = "<memberId>")
-        private String memberId;
+    static final class ReportStreak extends MemberReport {
 
         @Parameters(index = "1", paramLabel = "<habitId>")
         private String habitId;
 
-        @Option(names = "--window", required = true, paramLabel = "<window>", description = "window to walk")
-        private String window;
+        @Option(
+                names = "--freezes",
+                paramLabel = "<misses/days>",
+                description = "let the run carry this many misses in so many days, such as 1/28")
+        private String freezes;
 
         ReportStreak(Supplier<Context> context) {
             super(context);
@@ -160,14 +169,35 @@ public final class ReportCommands {
 
         @Override
         void run(Context ctx) {
-            StreakSummary summary =
-                    new AdherenceService(ctx.ports()).streak(Ids.crewMemberId(memberId), Ids.habitId(habitId), window);
-            ctx.out(Render.keyValues(List.of(
-                    Map.entry("current", Integer.toString(summary.current())),
-                    Map.entry("longest", Integer.toString(summary.longest())),
-                    Map.entry("shielded", Integer.toString(summary.shielded())),
-                    Map.entry("last met", dayOrDash(summary.lastMetOn())),
-                    Map.entry("broken on", dayOrDash(summary.brokenOn())))));
+            AdherenceService service = new AdherenceService(ctx.ports());
+            String habit = Ids.habitId(habitId);
+            if (freezes == null) {
+                StreakSummary summary = service.streak(member(), habit, window);
+                ctx.out(Render.keyValues(runLines(
+                        summary.current(),
+                        summary.longest(),
+                        summary.shielded(),
+                        summary.lastMetOn(),
+                        summary.brokenOn())));
+                return;
+            }
+            FreezeBudget budget = FreezeBudget.parse(freezes);
+            FrozenStreak run = service.frozenStreak(member(), habit, window, budget);
+            List<Map.Entry<String, String>> lines = new ArrayList<>(
+                    runLines(run.current(), run.longest(), run.shielded(), run.lastMetOn(), run.brokenOn()));
+            lines.add(Map.entry("carried", Integer.toString(run.frozen())));
+            lines.add(Map.entry("freezes left", run.freezesLeft() + " of " + budget.format()));
+            ctx.out(Render.keyValues(lines));
+        }
+
+        private static List<Map.Entry<String, String>> runLines(
+                int current, int longest, int shielded, Optional<CivilDate> lastMet, Optional<CivilDate> brokenOn) {
+            return List.of(
+                    Map.entry("current", Integer.toString(current)),
+                    Map.entry("longest", Integer.toString(longest)),
+                    Map.entry("shielded", Integer.toString(shielded)),
+                    Map.entry("last met", dayOrDash(lastMet)),
+                    Map.entry("broken on", dayOrDash(brokenOn)));
         }
 
         private static String dayOrDash(Optional<CivilDate> day) {
@@ -176,13 +206,7 @@ public final class ReportCommands {
     }
 
     @Command(name = "nudges", description = "what the planner would send")
-    static final class ReportNudges extends ContextCommand {
-
-        @Parameters(index = "0", paramLabel = "<memberId>")
-        private String memberId;
-
-        @Option(names = "--window", required = true, paramLabel = "<window>", description = "window to plan over")
-        private String window;
+    static final class ReportNudges extends MemberReport {
 
         ReportNudges(Supplier<Context> context) {
             super(context);
@@ -190,14 +214,17 @@ public final class ReportCommands {
 
         @Override
         void run(Context ctx) {
-            List<PlannedNudge> planned = new NudgesService(ctx.ports()).plan(Ids.crewMemberId(memberId), window);
-            List<Column<PlannedNudge>> columns = List.of(
-                    Column.left("day", row -> row.onDate().toString()),
-                    Column.left("at", row -> Zones.formatInstant(row.at())),
-                    Column.left("why", row -> row.reason().wire()),
-                    Column.left("habit", PlannedNudge::habitId));
-            ctx.out(Render.renderTable(planned, columns));
+            List<PlannedNudge> planned = new NudgesService(ctx.ports()).plan(member(), window);
+            ctx.out(Render.renderTable(planned, nudgeColumns()));
         }
+    }
+
+    private static List<Column<PlannedNudge>> nudgeColumns() {
+        return List.of(
+                Column.left("day", row -> row.onDate().toString()),
+                Column.left("at", row -> Zones.formatInstant(row.at())),
+                Column.left("why", row -> row.reason().wire()),
+                Column.left("habit", PlannedNudge::habitId));
     }
 
     private static List<Column<RoleSplit>> roleColumns() {
