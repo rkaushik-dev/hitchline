@@ -94,6 +94,31 @@ class CliCrewTest {
         }
 
         @Test
+        void countsWhoIsOnBoardEachDayAndFlagsTheGaps() {
+            run("demo", "seed", "--days", "28");
+            String crewId = firstCrew();
+            context.clear();
+            int code = run("crew", "members", crewId, "--window", "2025-01-19..2025-01-20", "--beds", "2");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            List<String> lines = lines();
+            assertThat(lines.get(0)).containsPattern("date +on board +travelling +leads +flag");
+            assertThat(lines.get(2)).containsPattern("2025-01-19 +3 +0 +1 +1 over the 2 beds");
+            assertThat(lines.get(3)).containsPattern("2025-01-20 +2 +0 +0 +no lead on board");
+        }
+
+        @Test
+        void wantsEitherADayOrAWindow() {
+            run("demo", "seed", "--days", "7");
+            String crewId = firstCrew();
+            assertThat(run("crew", "members", crewId)).isEqualTo(Context.EXIT_MISUSED);
+            assertThat(run("crew", "members", crewId, "--on", "2025-01-10", "--window", "2025-01-10..2025-01-11"))
+                    .isEqualTo(Context.EXIT_MISUSED);
+            assertThat(context.errorText()).contains("give either --on or --window");
+            assertThat(run("crew", "members", crewId, "--window", "2025-01-10..2025-01-11", "--beds", "lots"))
+                    .isEqualTo(Context.EXIT_MISUSED);
+        }
+
+        @Test
         void reportsACrewItDoesNotHold() {
             int code = run("crew", "members", "crw_9999999999999999", "--on", "2025-01-10");
             assertThat(code).isEqualTo(Context.EXIT_OK);

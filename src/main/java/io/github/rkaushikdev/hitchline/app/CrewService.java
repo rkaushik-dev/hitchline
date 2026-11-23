@@ -8,14 +8,19 @@ import io.github.rkaushikdev.hitchline.domain.crew.Crew;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewRole;
 import io.github.rkaushikdev.hitchline.domain.crew.Membership;
+import io.github.rkaushikdev.hitchline.domain.crew.PersonsOnBoard;
 import io.github.rkaushikdev.hitchline.domain.crew.SharingPreference;
 import io.github.rkaushikdev.hitchline.domain.crew.Viewer;
 import io.github.rkaushikdev.hitchline.domain.crew.Visibility;
+import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
+import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import io.github.rkaushikdev.hitchline.util.Collation;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -84,6 +89,24 @@ public final class CrewService {
         }
         found.sort(Comparator.comparing(CrewMember::displayName, Collation.ORDER));
         return found;
+    }
+
+    /** The crew's persons on board for each day of {@code window}, with every member's holds read in. */
+    public List<PersonsOnBoard> personsOnBoard(String crewId, String window) {
+        if (ports.crews().byId(crewId).isEmpty()) {
+            throw new NotFoundException("crew", crewId);
+        }
+        List<Membership> memberships = ports.crews().memberships();
+        Map<String, Roster> rosters = new HashMap<>();
+        memberships.stream()
+                .filter(row -> row.crewId().equals(crewId))
+                .map(Membership::memberId)
+                .distinct()
+                .forEach(memberId -> ports.members()
+                        .byId(memberId)
+                        .ifPresent(member -> rosters.put(
+                                memberId, Roster.of(member, ports.overrides().byMember(memberId)))));
+        return PersonsOnBoard.count(memberships, rosters, crewId, DateRange.parse(window));
     }
 
     public Optional<Crew> crewFor(String memberId, String on) {

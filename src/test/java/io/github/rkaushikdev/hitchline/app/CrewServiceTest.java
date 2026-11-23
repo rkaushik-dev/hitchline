@@ -10,13 +10,17 @@ import io.github.rkaushikdev.hitchline.domain.crew.Crew;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewRole;
 import io.github.rkaushikdev.hitchline.domain.crew.Membership;
+import io.github.rkaushikdev.hitchline.domain.crew.PersonsOnBoard;
 import io.github.rkaushikdev.hitchline.domain.crew.SharingPreference;
 import io.github.rkaushikdev.hitchline.domain.crew.Visibility;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
+import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
 import io.github.rkaushikdev.hitchline.infra.IdSources;
 import io.github.rkaushikdev.hitchline.infra.store.MemoryStore;
 import io.github.rkaushikdev.hitchline.support.Fixtures;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -121,6 +125,33 @@ class CrewServiceTest {
         void refusesAMembershipItDoesNotHold() {
             Crew crew = alpha();
             assertThatThrownBy(() -> service.release(crew.id(), ADA, "2025-06-30"))
+                    .isInstanceOf(NotFoundException.class);
+        }
+    }
+
+    @Nested
+    class PersonsOnBoardOverAWindow {
+
+        @Test
+        void countsTheCrewOnBoardEachDayWithTheHoldsReadIn() {
+            Crew crew = alpha();
+            enrolLead(crew, ADA);
+            enrol(crew, BO);
+            new RosterService(store)
+                    .hold(new RosterService.HoldCommand(
+                            BO,
+                            "2025-01-06..2025-01-06",
+                            DayRole.ONSHIFT,
+                            OverrideReason.CALLED_OUT,
+                            Optional.empty()));
+            List<PersonsOnBoard> days = service.personsOnBoard(crew.id(), "2025-01-05..2025-01-06");
+            assertThat(days).extracting(PersonsOnBoard::onBoard).containsExactly(0, 2);
+            assertThat(days.get(1).leads()).isEqualTo(1);
+        }
+
+        @Test
+        void complainsAboutACrewItDoesNotHold() {
+            assertThatThrownBy(() -> service.personsOnBoard("crw_9999999999999999", "2025-01-05..2025-01-06"))
                     .isInstanceOf(NotFoundException.class);
         }
     }

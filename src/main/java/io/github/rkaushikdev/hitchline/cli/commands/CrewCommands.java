@@ -11,10 +11,12 @@ import io.github.rkaushikdev.hitchline.cli.Column;
 import io.github.rkaushikdev.hitchline.cli.Context;
 import io.github.rkaushikdev.hitchline.cli.Render;
 import io.github.rkaushikdev.hitchline.domain.Ids;
+import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.crew.Crew;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewRole;
 import io.github.rkaushikdev.hitchline.domain.crew.Membership;
+import io.github.rkaushikdev.hitchline.domain.crew.PersonsOnBoard;
 import io.github.rkaushikdev.hitchline.util.Numbers;
 import java.util.List;
 import java.util.Map;
@@ -105,14 +107,23 @@ public final class CrewCommands {
         }
     }
 
-    @Command(name = "members", description = "who was on a crew on a date")
+    @Command(name = "members", description = "who was on a crew on a date, or on board over a window")
     static final class ListCrewMembers extends ContextCommand {
 
         @Parameters(index = "0", paramLabel = "<crewId>")
         private String crew;
 
-        @Option(names = "--on", required = true, paramLabel = "<date>", description = "the day to read it as")
+        @Option(names = "--on", paramLabel = "<date>", description = "the day to read it as")
         private String on;
+
+        @Option(
+                names = "--window",
+                paramLabel = "<window>",
+                description = "count who is on board each day of a window instead")
+        private String window;
+
+        @Option(names = "--beds", paramLabel = "<beds>", description = "flag the days more are on board than this")
+        private String beds;
 
         ListCrewMembers(Supplier<Context> context) {
             super(context);
@@ -120,15 +131,40 @@ public final class CrewCommands {
 
         @Override
         void run(Context ctx) {
-            List<CrewMember> members = new CrewService(ctx.ports()).membersOfCrew(Ids.crewId(crew), on);
-            List<Column<CrewMember>> columns = List.of(
-                    Column.left("id", CrewMember::id),
-                    Column.left("name", CrewMember::displayName),
-                    Column.left("home", CrewMember::homeZone),
-                    Column.left("joined", row -> row.joinedOn().toString()));
-            ctx.out(Render.renderTable(members, columns));
+            CrewService crews = new CrewService(ctx.ports());
+            if ((on == null) == (window == null)) {
+                throw ValidationException.field("on", "give either --on or --window");
+            }
+            if (on != null) {
+                ctx.out(Render.renderTable(crews.membersOfCrew(Ids.crewId(crew), on), MEMBER_COLUMNS));
+                return;
+            }
+            Optional<Integer> limit = Optional.ofNullable(beds)
+                    .map(text -> Arguments.wholeNumber(text, "beds", "must be a whole number of beds"));
+            List<Column<PersonsOnBoard>> columns = List.of(
+                    Column.left("date", row -> row.date().toString()),
+                    Column.right("on board", row -> Integer.toString(row.onBoard())),
+                    Column.right("travelling", row -> Integer.toString(row.travelling())),
+                    Column.right("leads", row -> Integer.toString(row.leads())),
+                    Column.left("flag", row -> String.join(", ", row.problems(limit))));
+            ctx.out(Render.renderTable(crews.personsOnBoard(Ids.crewId(crew), window), columns));
         }
     }
+
+    private static final List<Column<CrewLine>> LINE_COLUMNS = List.of(
+            Column.left("name", CrewLine::displayName),
+            Column.right("owed", row -> Integer.toString(row.owed())),
+            Column.right("met", row -> Integer.toString(row.met())),
+            Column.right("partial", row -> Integer.toString(row.partial())),
+            Column.right("missed", row -> Integer.toString(row.missed())),
+            Column.right("rate", row -> Render.percent(row.rate())),
+            Column.right("hidden", row -> Integer.toString(row.hidden())));
+
+    private static final List<Column<CrewMember>> MEMBER_COLUMNS = List.of(
+            Column.left("id", CrewMember::id),
+            Column.left("name", CrewMember::displayName),
+            Column.left("home", CrewMember::homeZone),
+            Column.left("joined", row -> row.joinedOn().toString()));
 
     @Command(name = "compare", description = "read the crew side by side as one member would see it")
     static final class Compare extends ContextCommand {
@@ -153,15 +189,7 @@ public final class CrewCommands {
         void run(Context ctx) {
             CrewComparison report =
                     new CompareService(ctx.ports()).crew(Ids.crewMemberId(viewer), Ids.crewId(crew), window, on);
-            List<Column<CrewLine>> columns = List.of(
-                    Column.left("name", CrewLine::displayName),
-                    Column.right("owed", row -> Integer.toString(row.owed())),
-                    Column.right("met", row -> Integer.toString(row.met())),
-                    Column.right("partial", row -> Integer.toString(row.partial())),
-                    Column.right("missed", row -> Integer.toString(row.missed())),
-                    Column.right("rate", row -> Render.percent(row.rate())),
-                    Column.right("hidden", row -> Integer.toString(row.hidden())));
-            ctx.out(Render.renderTable(report.lines(), columns));
+            ctx.out(Render.renderTable(report.lines(), LINE_COLUMNS));
             ctx.out("");
             ctx.out(Render.keyValues(
                     List.of(Map.entry("crew", Render.bar(report.rate()) + " " + Render.percent(report.rate())))));
