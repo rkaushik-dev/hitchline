@@ -61,8 +61,12 @@ class AdherenceServiceTest {
     }
 
     private void shieldLeave() {
-        rosters.shieldDays(new ShieldCommand(
-                ADA, "2025-01-13..2025-01-15", ShieldReason.ANNUAL_LEAVE, Optional.empty(), Optional.empty()));
+        shieldLeave("2025-01-13..2025-01-15");
+    }
+
+    private void shieldLeave(String range) {
+        rosters.shieldDays(
+                new ShieldCommand(ADA, range, ShieldReason.ANNUAL_LEAVE, Optional.empty(), Optional.empty()));
     }
 
     @Nested
@@ -151,6 +155,19 @@ class AdherenceServiceTest {
                     ADA, "2025-01-20..2025-01-31", ShieldReason.SICK, Optional.empty(), Optional.empty()));
             holdOver();
             assertThat(service.open(ADA, "2025-01-20..2025-01-31")).isEmpty();
+        }
+
+        @Test
+        void asksForLessOverAHitchPartlySpentOnLeave() {
+            store.habits()
+                    .save(Fixtures.aHabit(
+                            o -> o.id("hab_FEDCBA9876543210").cadence("3/hitch").startsOn("2025-01-06")));
+            shieldLeave("2025-01-20..2025-02-02");
+            List<ObligationResult> gym = service.report(ADA, "2025-01-06..2025-02-02").results().stream()
+                    .filter(result -> result.obligation().habitId().equals(Ids.habitId("hab_FEDCBA9876543210")))
+                    .toList();
+            assertThat(gym).hasSize(1);
+            assertThat(gym.get(0).obligation().times()).isEqualTo(2);
         }
 
         @Test

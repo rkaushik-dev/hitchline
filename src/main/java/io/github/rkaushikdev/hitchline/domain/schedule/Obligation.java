@@ -34,6 +34,11 @@ public record Obligation(String habitId, String memberId, ObligationScope scope,
         }
     }
 
+    /** The same obligation asking for {@code count} check ins instead. */
+    public Obligation withTimes(int count) {
+        return new Obligation(habitId, memberId, scope, window, count);
+    }
+
     /** The day it is reported against, always the last day of the window. */
     public CivilDate dueOn() {
         return window.to();
