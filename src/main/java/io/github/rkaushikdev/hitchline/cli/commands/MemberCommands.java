@@ -16,6 +16,7 @@ import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
 import io.github.rkaushikdev.hitchline.domain.rotation.HitchVariance;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
+import io.github.rkaushikdev.hitchline.domain.rotation.Presence;
 import io.github.rkaushikdev.hitchline.domain.rotation.RosterOverride;
 import io.github.rkaushikdev.hitchline.domain.rotation.RotationAssignment;
 import io.github.rkaushikdev.hitchline.domain.rotation.RotationPattern;
@@ -190,6 +191,9 @@ public final class MemberCommands {
         @Option(names = "--by-hitch", description = "count each hitch as worked against as rostered")
         private boolean byHitch;
 
+        @Option(names = "--presence", description = "count the days spent on each clock, for tax year day counts")
+        private boolean presence;
+
         @Option(names = "--check", description = "check the trips and breaks against the duty limits")
         private boolean check;
 
@@ -223,22 +227,38 @@ public final class MemberCommands {
             }
             ctx.out(Render.renderTable(roster.daysFor(id, window), columns));
             if (byHitch) {
-                ctx.out("");
-                ctx.out(Render.renderTable(roster.variance(id, window), VARIANCE_COLUMNS));
+                section(ctx, List.of(Render.renderTable(roster.variance(id, window), VARIANCE_COLUMNS)));
+            }
+            if (presence) {
+                section(
+                        ctx,
+                        List.of(Render.renderTable(roster.presence(id, window).zones(), PRESENCE_COLUMNS)));
             }
             if (check) {
                 DutyLimits limits = DutyLimits.of(
                         Arguments.wholeNumber(maxTrip, "maxTripDays", "must be a whole number of days"),
                         Arguments.wholeNumber(minBreak, "minBreakDays", "must be a whole number of days"));
-                List<DutyBreach> breaches = roster.dutyBreaches(id, window, limits);
-                ctx.out("");
-                if (breaches.isEmpty()) {
-                    ctx.out("within the duty limits");
-                }
-                breaches.forEach(breach -> ctx.out(breach.describe()));
+                section(ctx, dutyLines(roster.dutyBreaches(id, window, limits)));
             }
         }
+
+        private static List<String> dutyLines(List<DutyBreach> breaches) {
+            return breaches.isEmpty()
+                    ? List.of("within the duty limits")
+                    : breaches.stream().map(DutyBreach::describe).toList();
+        }
     }
+
+    /** One part of a printout, set off from the part before it by a blank line. */
+    private static void section(Context ctx, List<String> lines) {
+        ctx.out("");
+        lines.forEach(ctx::out);
+    }
+
+    private static final List<Column<Presence.ZoneDays>> PRESENCE_COLUMNS = List.of(
+            Column.left("clock", Presence.ZoneDays::zone),
+            Column.right("days", row -> Integer.toString(row.days())),
+            Column.right("share", row -> Render.percent(row.share())));
 
     private static final List<Column<HitchVariance>> VARIANCE_COLUMNS = List.of(
             Column.left("hitch", row -> row.hitch().toString()),

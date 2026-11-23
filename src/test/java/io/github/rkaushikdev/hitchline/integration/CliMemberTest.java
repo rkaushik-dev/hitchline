@@ -42,6 +42,22 @@ class CliMemberTest {
         "held_over"
     };
 
+    /** Ada on a fortnight each way, living in Lisbon and working on a Norwegian platform. */
+    private static final String[] ADD_ADA = {
+        "member",
+        "add",
+        "--name",
+        "Ada Vasquez",
+        "--pattern",
+        "14/14",
+        "--anchor",
+        "2025-01-06",
+        "--home",
+        "Europe/Lisbon",
+        "--site",
+        "Europe/Oslo"
+    };
+
     private MemoryStore store;
     private Recorder context;
 
@@ -123,19 +139,7 @@ class CliMemberTest {
 
         @Test
         void storesAMemberAndPrintsTheId() {
-            int code = run(
-                    "member",
-                    "add",
-                    "--name",
-                    "Ada Vasquez",
-                    "--pattern",
-                    "14/14",
-                    "--anchor",
-                    "2025-01-06",
-                    "--home",
-                    "Europe/Lisbon",
-                    "--site",
-                    "Europe/Oslo");
+            int code = run(ADD_ADA);
             assertThat(code).isEqualTo(Context.EXIT_OK);
             assertThat(store.members().all()).hasSize(1);
             assertThat(context.text()).contains("Ada Vasquez");
@@ -271,19 +275,7 @@ class CliMemberTest {
     class MemberRoster {
 
         private String addAda() {
-            run(
-                    "member",
-                    "add",
-                    "--name",
-                    "Ada Vasquez",
-                    "--pattern",
-                    "14/14",
-                    "--anchor",
-                    "2025-01-06",
-                    "--home",
-                    "Europe/Lisbon",
-                    "--site",
-                    "Europe/Oslo");
+            run(ADD_ADA);
             String id = firstMember();
             context.clear();
             return id;
@@ -334,6 +326,16 @@ class CliMemberTest {
             String text = context.text();
             assertThat(text).contains("rostered");
             assertThat(text).containsPattern("2025-01-06\\.\\.2025-02-02 +14 +17 +3 +0 +held_over 3");
+        }
+
+        @Test
+        void countsTheDaysOnEachClock() {
+            String id = addAda();
+            run("member", "roster", id, "--window", "2025-01-06..2025-01-25", "--presence");
+            String text = context.text();
+            assertThat(text).containsPattern("clock +days +share");
+            assertThat(text).containsPattern("Europe/Oslo +14 +70%");
+            assertThat(text).containsPattern("Europe/Lisbon +6 +30%");
         }
 
         @Test

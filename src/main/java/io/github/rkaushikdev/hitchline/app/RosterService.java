@@ -11,6 +11,7 @@ import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
 import io.github.rkaushikdev.hitchline.domain.rotation.EffectiveRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.HitchVariance;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
+import io.github.rkaushikdev.hitchline.domain.rotation.Presence;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleSource;
 import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
 import io.github.rkaushikdev.hitchline.domain.rotation.RosterOverride;
@@ -136,6 +137,11 @@ public final class RosterService {
     /** Each hitch {@code window} touches, as worked against as rostered. */
     public List<HitchVariance> variance(String memberId, String window) {
         return HitchVariance.over(rosterFor(memberId), DateRange.parse(window));
+    }
+
+    /** The days of {@code window} the member spent on each clock. */
+    public Presence presence(String memberId, String window) {
+        return Presence.over(rosterFor(memberId), DateRange.parse(window));
     }
 
     /** The hitch {@code date} belongs to. */

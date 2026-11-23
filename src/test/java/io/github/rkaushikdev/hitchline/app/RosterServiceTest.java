@@ -18,6 +18,7 @@ import io.github.rkaushikdev.hitchline.domain.rotation.DutyBreach;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyLimits;
 import io.github.rkaushikdev.hitchline.domain.rotation.DutyRule;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
+import io.github.rkaushikdev.hitchline.domain.rotation.Presence;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleSource;
 import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
 import io.github.rkaushikdev.hitchline.domain.rotation.RosterOverride;
@@ -99,6 +100,18 @@ class RosterServiceTest {
             assertThat(days.stream().map(RosterDay::source))
                     .containsExactly(RoleSource.PATTERN, RoleSource.OVERRIDE, RoleSource.OVERRIDE);
             assertThat(days.get(1).describe()).isEqualTo("2025-01-20 onshift (override)");
+        }
+    }
+
+    @Nested
+    class DaysOnEachClock {
+
+        @Test
+        void countsTheDaysOnEachClockWithTheHoldsReadIn() {
+            holdOver();
+            Presence presence = service.presence(ADA, "2025-01-06..2025-02-02");
+            assertThat(presence.daysIn("Europe/Oslo")).isEqualTo(17);
+            assertThat(presence.daysIn("Europe/Lisbon")).isEqualTo(11);
         }
     }
 
