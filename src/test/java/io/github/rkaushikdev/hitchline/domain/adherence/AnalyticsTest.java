@@ -135,6 +135,50 @@ class AnalyticsTest {
     }
 
     @Nested
+    class CleanHitchesInARow {
+
+        private PeriodSummary hitch(int owed, int met, int partial, int missed, int pending) {
+            return new PeriodSummary(
+                    DateRange.parse("2025-01-06..2025-02-02"), owed, met, partial, missed, pending, 0, 1);
+        }
+
+        @Test
+        void countsBackFromTheLatestHitchUntilOneWentWrong() {
+            List<PeriodSummary> hitches = List.of(
+                    hitch(14, 14, 0, 0, 0), hitch(14, 13, 0, 1, 0), hitch(14, 14, 0, 0, 0), hitch(14, 14, 0, 0, 0));
+            assertThat(Analytics.cleanHitchesInARow(hitches)).isEqualTo(2);
+        }
+
+        @Test
+        void breaksOnAHitchDoneOnlyInPart() {
+            assertThat(Analytics.cleanHitchesInARow(List.of(hitch(14, 14, 0, 0, 0), hitch(14, 13, 1, 0, 0))))
+                    .isZero();
+        }
+
+        @Test
+        void stepsOverAHitchThatOwedNothing() {
+            List<PeriodSummary> hitches = List.of(hitch(14, 14, 0, 0, 0), hitch(0, 0, 0, 0, 0), hitch(14, 14, 0, 0, 0));
+            assertThat(Analytics.cleanHitchesInARow(hitches)).isEqualTo(2);
+        }
+
+        @Test
+        void waitsOnTheLatestHitchWhileItIsStillRunningClean() {
+            List<PeriodSummary> hitches = List.of(hitch(14, 14, 0, 0, 0), hitch(14, 5, 0, 0, 9));
+            assertThat(Analytics.cleanHitchesInARow(hitches)).isEqualTo(1);
+            assertThat(Analytics.cleanHitchesInARow(List.of(hitch(14, 4, 0, 1, 9))))
+                    .isZero();
+        }
+
+        @Test
+        void stopsAtAnOlderHitchThatIsStillOpen() {
+            List<PeriodSummary> hitches =
+                    List.of(hitch(14, 14, 0, 0, 0), hitch(14, 5, 0, 0, 9), hitch(14, 14, 0, 0, 0));
+            assertThat(Analytics.cleanHitchesInARow(hitches)).isEqualTo(1);
+            assertThat(Analytics.cleanHitchesInARow(List.of())).isZero();
+        }
+    }
+
+    @Nested
     class TrendOf {
 
         @Test

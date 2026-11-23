@@ -23,9 +23,11 @@ import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
 import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.Trend;
+import io.github.rkaushikdev.hitchline.domain.checkin.CheckInSource;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
+import io.github.rkaushikdev.hitchline.domain.time.Zones;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
 import io.github.rkaushikdev.hitchline.infra.IdSources;
 import io.github.rkaushikdev.hitchline.infra.MutableClock;
@@ -183,6 +185,26 @@ class AdherenceServiceTest {
             shieldLeave();
             assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().shieldedDays())
                     .isEqualTo(3);
+        }
+    }
+
+    @Nested
+    class CleanHitches {
+
+        @Test
+        void countsTheHitchesClearedInARow() {
+            clock.set(Zones.parseInstant("2025-03-05T09:00:00Z"));
+            for (int day = 0; day < 14; day += 1) {
+                String date = CivilDate.parse("2025-02-03").plusDays(day).toString();
+                checkIns.record(RecordCheckInCommand.of(TREADMILL)
+                        .withAt(date + "T09:00:00Z")
+                        .withSource(CheckInSource.SUPERVISOR));
+            }
+            AdherenceReport report = service.report(ADA, "2025-01-06..2025-03-02");
+            assertThat(report.byHitch()).hasSize(2);
+            assertThat(report.cleanHitches()).isEqualTo(1);
+            assertThat(service.report(ADA, "2025-01-06..2025-02-02").cleanHitches())
+                    .isZero();
         }
     }
 

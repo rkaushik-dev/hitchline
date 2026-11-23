@@ -113,6 +113,10 @@ public final class ReportCommands {
             ctx.out(Render.keyValues(summaryLines(report)));
             if (byHitch) {
                 section(ctx, List.of(Render.renderTable(report.byHitch(), summaryColumns())));
+                section(
+                        ctx,
+                        List.of(Render.keyValues(List.of(
+                                Map.entry("clean hitches in a row", Integer.toString(report.cleanHitches()))))));
             }
             if (shape) {
                 section(ctx, List.of(Render.renderTable(report.byRole(), roleColumns())));
@@ -280,8 +284,10 @@ public final class ReportCommands {
                 Column.left("window", row -> row.range().toString()),
                 Column.right("owed", row -> Integer.toString(row.owed())),
                 Column.right("met", row -> Integer.toString(row.met())),
+                Column.right("partial", row -> Integer.toString(row.partial())),
                 Column.right("missed", row -> Integer.toString(row.missed())),
-                Column.right("rate", row -> Render.percent(row.rate())));
+                Column.right("rate", row -> Render.percent(row.rate())),
+                Column.left("clean", row -> row.owed() > 0 && row.pending() == 0 && row.isClean() ? "yes" : "-"));
     }
 
     private static List<Column<ObligationResult>> resultColumns() {

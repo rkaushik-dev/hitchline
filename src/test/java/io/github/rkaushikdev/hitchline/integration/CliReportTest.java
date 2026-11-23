@@ -159,6 +159,15 @@ class CliReportTest {
         }
 
         @Test
+        void saysHowManyHitchesInARowWereClean() {
+            run("report", "adherence", ADA, "--window", "2025-01-06..2025-02-02", "--by-hitch");
+            String text = context.text();
+            assertThat(text).containsPattern("window +owed +met +partial +missed +rate +clean");
+            assertThat(text).containsPattern("2025-01-06\\.\\.2025-02-02 +14 +2 +0 +12 +14% +-");
+            assertThat(text).containsPattern("clean hitches in a row +0");
+        }
+
+        @Test
         void refusesAWindowItCannotRead() {
             assertThat(run("report", "adherence", ADA, "--window", "january")).isEqualTo(Context.EXIT_MISUSED);
         }

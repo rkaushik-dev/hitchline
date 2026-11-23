@@ -65,6 +65,35 @@ public final class Analytics {
         return splits;
     }
 
+    /**
+     * How many hitches in a row, counting back from the latest, were cleared with nothing missed
+     * and nothing done in part. A hitch that owed nothing neither counts nor breaks the run, and
+     * neither does the latest one while something in it is still open and nothing has gone wrong,
+     * because it has not finished yet. Crews talk about clean hitches, not clean days.
+     */
+    public static int cleanHitchesInARow(List<PeriodSummary> byHitch) {
+        int run = 0;
+        boolean latest = true;
+        for (int index = byHitch.size() - 1; index >= 0; index -= 1) {
+            PeriodSummary hitch = byHitch.get(index);
+            if (hitch.owed() == 0) {
+                continue;
+            }
+            if (!hitch.isClean()) {
+                return run;
+            }
+            if (hitch.pending() > 0) {
+                if (!latest) {
+                    return run;
+                }
+            } else {
+                run += 1;
+            }
+            latest = false;
+        }
+        return run;
+    }
+
     public static Trend trendOf(List<PeriodSummary> summaries) {
         return trendOf(summaries, DEFAULT_TOLERANCE);
     }

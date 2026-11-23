@@ -52,6 +52,7 @@ public final class AdherenceService {
      * @param byRole how the same person does on shift against at home
      * @param trend which way the last hitch moved
      * @param busiestHour the local hour most check ins happened in, when there were any
+     * @param cleanHitches hitches in a row, back from the latest, cleared with nothing missed
      */
     public record AdherenceReport(
             DateRange window,
@@ -62,7 +63,8 @@ public final class AdherenceService {
             List<PeriodSummary> byHitch,
             List<RoleSplit> byRole,
             Trend trend,
-            OptionalInt busiestHour) {
+            OptionalInt busiestHour,
+            int cleanHitches) {
 
         public AdherenceReport {
             results = List.copyOf(results);
@@ -85,13 +87,24 @@ public final class AdherenceService {
                 request.summarise(),
                 request.byHabit(),
                 byHitch,
-                Analytics.byRole(Shield.unexcused(results, loaded.shields(), memberId), result -> loaded.roster()
+                Analytics.byRole(unexcused(loaded, results), result -> loaded.roster()
                         .roleFor(result.obligation().dueOn())),
                 Analytics.trendOf(byHitch),
                 Analytics.busiestHour(loaded.resolved())
                         .map(HourBucket::hour)
                         .map(OptionalInt::of)
-                        .orElse(OptionalInt.empty()));
+                        .orElse(OptionalInt.empty()),
+                Analytics.cleanHitchesInARow(byHitch));
+    }
+
+    /** The results no shield of the member excuses: what every count but the streak reads. */
+    private static List<ObligationResult> unexcused(LoadedMember loaded, List<ObligationResult> results) {
+        return Shield.unexcused(
+                results, loaded.shields(), loaded.roster().member().id());
+    }
+
+    private List<ObligationResult> owed(LoadedMember loaded, String window) {
+        return unexcused(loaded, loader.score(loaded, DateRange.parse(window)));
     }
 
     /**
@@ -110,8 +123,7 @@ public final class AdherenceService {
             streaks.put(habit.id(), StreakSummary.compute(mine, loaded.shields(), memberId));
         }
         PeriodSummary summary = new SummaryRequest(loaded.roster(), results, loaded.shields(), range).summarise();
-        List<ObligationResult> owed = Shield.unexcused(results, loaded.shields(), memberId);
-        return new Digest(loaded.roster().member(), summary, loaded.habits(), owed, streaks);
+        return new Digest(loaded.roster().member(), summary, loaded.habits(), unexcused(loaded, results), streaks);
     }
 
     /** The run of one habit over a window. */
@@ -152,18 +164,12 @@ public final class AdherenceService {
      * against it, the same as in the summary.
      */
     public QuotaReading quota(String memberId, String window, Quota quota) {
-        LoadedMember loaded = loader.load(memberId);
-        List<ObligationResult> owed =
-                Shield.unexcused(loader.score(loaded, DateRange.parse(window)), loaded.shields(), memberId);
-        return quota.read(owed);
+        return quota.read(owed(loader.load(memberId), window));
     }
 
     /** What is still open in a window and not yet done enough times, less anything a shield excuses. */
     public List<ObligationResult> open(String memberId, String window) {
-        LoadedMember loaded = loader.load(memberId);
-        List<ObligationResult> owed =
-                Shield.unexcused(loader.score(loaded, DateRange.parse(window)), loaded.shields(), memberId);
-        return owed.stream()
+        return owed(loader.load(memberId), window).stream()
                 .filter(result -> result.status() == AdherenceStatus.PENDING
                         && result.count() < result.obligation().times())
                 .toList();
