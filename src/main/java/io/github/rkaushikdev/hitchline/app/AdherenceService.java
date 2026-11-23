@@ -23,7 +23,9 @@ import io.github.rkaushikdev.hitchline.domain.habit.Habit;
 import io.github.rkaushikdev.hitchline.domain.habit.TargetUnit;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
 
 /**
@@ -90,6 +92,26 @@ public final class AdherenceService {
                         .map(HourBucket::hour)
                         .map(OptionalInt::of)
                         .orElse(OptionalInt.empty()));
+    }
+
+    /**
+     * The end of hitch note for a window, usually the hitch just finished: the summary, a line per
+     * habit with the run still going on it, and when the next trip starts.
+     */
+    public Digest digest(String memberId, String window) {
+        DateRange range = DateRange.parse(window);
+        LoadedMember loaded = loader.load(memberId);
+        List<ObligationResult> results = loader.score(loaded, range);
+        Map<String, StreakSummary> streaks = new LinkedHashMap<>();
+        for (Habit habit : loaded.habits()) {
+            List<ObligationResult> mine = results.stream()
+                    .filter(result -> result.obligation().habitId().equals(habit.id()))
+                    .toList();
+            streaks.put(habit.id(), StreakSummary.compute(mine, loaded.shields(), memberId));
+        }
+        PeriodSummary summary = new SummaryRequest(loaded.roster(), results, loaded.shields(), range).summarise();
+        List<ObligationResult> owed = Shield.unexcused(results, loaded.shields(), memberId);
+        return new Digest(loaded.roster().member(), summary, loaded.habits(), owed, streaks);
     }
 
     /** The run of one habit over a window. */

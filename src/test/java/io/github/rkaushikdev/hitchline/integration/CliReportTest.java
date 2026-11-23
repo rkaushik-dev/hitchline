@@ -148,6 +148,17 @@ class CliReportTest {
         }
 
         @Test
+        void writesTheEndOfHitchNoteWhenAsked() {
+            int code = run("report", "adherence", ADA, "--window", "2025-01-06..2025-02-02", "--digest");
+            assertThat(code).isEqualTo(Context.EXIT_OK);
+            String text = context.text();
+            assertThat(text).contains("hitchline: 2025-01-06..2025-02-02 for Ada Vasquez");
+            assertThat(text).contains("Ada Vasquez, you did 2 of 14 over 2025-01-06..2025-02-02.");
+            assertThat(text).contains("- Twenty minutes on the treadmill: 2 of 14");
+            assertThat(text).contains("Next trip starts 2025-02-03.");
+        }
+
+        @Test
         void refusesAWindowItCannotRead() {
             assertThat(run("report", "adherence", ADA, "--window", "january")).isEqualTo(Context.EXIT_MISUSED);
         }

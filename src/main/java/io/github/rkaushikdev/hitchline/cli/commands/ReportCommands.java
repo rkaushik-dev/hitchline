@@ -2,6 +2,7 @@ package io.github.rkaushikdev.hitchline.cli.commands;
 
 import io.github.rkaushikdev.hitchline.app.AdherenceService;
 import io.github.rkaushikdev.hitchline.app.AdherenceService.AdherenceReport;
+import io.github.rkaushikdev.hitchline.app.Digest;
 import io.github.rkaushikdev.hitchline.app.NudgesService;
 import io.github.rkaushikdev.hitchline.cli.Column;
 import io.github.rkaushikdev.hitchline.cli.Context;
@@ -96,6 +97,9 @@ public final class ReportCommands {
         @Option(names = "--misses-only", description = "count only outright misses against the quota")
         private boolean missesOnly;
 
+        @Option(names = "--digest", description = "write the end of hitch note for the window as well")
+        private boolean digest;
+
         ReportAdherence(Supplier<Context> context) {
             super(context);
         }
@@ -119,6 +123,10 @@ public final class ReportCommands {
             }
             if (quota != null) {
                 section(ctx, quotaSection(service.quota(id, window, Quota.parse("quota", quota, missesOnly))));
+            }
+            if (digest) {
+                Digest note = service.digest(id, window);
+                section(ctx, List.of(note.subjectLine(), "", Texts.trimEnd(note.text())));
             }
         }
 

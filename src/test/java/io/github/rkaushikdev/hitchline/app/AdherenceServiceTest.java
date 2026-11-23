@@ -25,6 +25,7 @@ import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.Trend;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
 import io.github.rkaushikdev.hitchline.domain.rotation.OverrideReason;
+import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.infra.Clocks;
 import io.github.rkaushikdev.hitchline.infra.IdSources;
 import io.github.rkaushikdev.hitchline.infra.MutableClock;
@@ -182,6 +183,31 @@ class AdherenceServiceTest {
             shieldLeave();
             assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().shieldedDays())
                     .isEqualTo(3);
+        }
+    }
+
+    @Nested
+    class TheEndOfHitchNote {
+
+        @Test
+        void writesTheNoteForAHitchWithTheRunsGoingOnIt() {
+            for (String day : List.of("2025-01-16", "2025-01-17", "2025-01-18", "2025-01-19")) {
+                checkInOn(day);
+            }
+            Digest note = service.digest(ADA, "2025-01-06..2025-02-02");
+            assertThat(note.headline()).isEqualTo("Ada Vasquez, you did 4 of 14 over 2025-01-06..2025-02-02.");
+            assertThat(note.habitLines()).extracting(Digest.HabitLine::streak).containsExactly(4);
+            assertThat(note.text()).contains("Longest run this hitch: Twenty minutes on the treadmill at 4.");
+            assertThat(note.nextTripStarts()).contains(CivilDate.parse("2025-02-03"));
+        }
+
+        @Test
+        void leavesDaysOfLeaveOutOfTheNote() {
+            shieldLeave("2025-01-06..2025-01-12");
+            Digest note = service.digest(ADA, "2025-01-06..2025-01-19");
+            assertThat(note.summary().owed()).isEqualTo(7);
+            assertThat(note.habitLines().get(0).owed()).isEqualTo(7);
+            assertThat(note.text()).contains("7 days were shielded");
         }
     }
 

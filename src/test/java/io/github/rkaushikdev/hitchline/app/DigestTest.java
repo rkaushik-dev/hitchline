@@ -10,6 +10,7 @@ import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.schedule.Obligation;
 import io.github.rkaushikdev.hitchline.domain.schedule.ObligationScope;
+import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.DateRange;
 import io.github.rkaushikdev.hitchline.support.Fixtures;
 import io.github.rkaushikdev.hitchline.util.Texts;
@@ -157,6 +158,42 @@ class DigestTest {
         @Test
         void carriesTheRunFromTheStreaksItWasGiven() {
             assertThat(anInput().habitLines().get(0).streak()).isEqualTo(4);
+        }
+    }
+
+    @Nested
+    class TheNextTrip {
+
+        @Test
+        void namesTheFirstDayOfTheNextTripAfterTheWindow() {
+            // A fortnight each way from 6 January puts a trip on 26 May and the next on 23 June.
+            assertThat(anInput().nextTripStarts()).contains(CivilDate.parse("2025-06-23"));
+            assertThat(anInput().text()).endsWith("\n\nNext trip starts 2025-06-23.\n");
+        }
+
+        @Test
+        void startsTheNextTripOnItsTravelDay() {
+            Digest flyer = new Digest(
+                    Fixtures.aMember(o -> o.pattern("1travel 13on 14off")),
+                    SUMMARY,
+                    List.of(Fixtures.aHabit()),
+                    results(),
+                    streaks(0, 0));
+            assertThat(flyer.nextTripStarts()).contains(CivilDate.parse("2025-06-23"));
+        }
+
+        @Test
+        void describesEachHabitLineOnItsOwn() {
+            assertThat(new Digest.HabitLine("Call home", 2, 1, 0, 3).describe())
+                    .isEqualTo("- Call home: 1 of 2, 3 in a row");
+            assertThat(new Digest.HabitLine("Call home", 0, 0, 0, 0).describe())
+                    .isEqualTo("- Call home: nothing was owed");
+        }
+
+        @Test
+        void picksTheFirstListedHabitWhenTwoRunsTie() {
+            String text = anInput(SUMMARY, results(), streaks(5, 5)).text();
+            assertThat(text).contains("Longest run this hitch: Twenty minutes on the treadmill at 5.");
         }
     }
 
