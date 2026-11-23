@@ -7,8 +7,10 @@ import static org.assertj.core.api.Assertions.within;
 import io.github.rkaushikdev.hitchline.app.CheckInsService.RecordCheckInCommand;
 import io.github.rkaushikdev.hitchline.app.CompareService.CrewComparison;
 import io.github.rkaushikdev.hitchline.app.CompareService.CrewLine;
+import io.github.rkaushikdev.hitchline.app.RosterService.ShieldCommand;
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
+import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
 import io.github.rkaushikdev.hitchline.domain.checkin.CheckInSource;
 import io.github.rkaushikdev.hitchline.domain.crew.Crew;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewRole;
@@ -81,6 +83,21 @@ class CompareServiceTest {
             assertThat(mine.owed()).isEqualTo(14);
             assertThat(mine.met()).isEqualTo(2);
             assertThat(mine.hidden()).isZero();
+        }
+
+        @Test
+        void leavesDaysOfLeaveOutOfAMembersLine() {
+            new RosterService(store)
+                    .shieldDays(new ShieldCommand(
+                            ADA,
+                            "2025-01-13..2025-01-19",
+                            ShieldReason.ANNUAL_LEAVE,
+                            Optional.empty(),
+                            Optional.empty()));
+            CrewLine mine = lineOf(service.crew(ADA, alpha, WINDOW, "2025-01-20"), ADA);
+            assertThat(mine.owed()).isEqualTo(7);
+            assertThat(mine.missed()).isEqualTo(5);
+            assertThat(mine.rate()).isCloseTo(2 / 7.0, within(1e-9));
         }
 
         @Test

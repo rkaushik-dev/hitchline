@@ -79,6 +79,24 @@ public record Shield(
                 .toList();
     }
 
+    /**
+     * True when a shield excuses the result: something not done that fell due on a shielded day of
+     * the member. A shield takes away what was owed and never what was done, so a met obligation
+     * is never excused.
+     */
+    public static boolean excuses(List<Shield> shields, String memberId, ObligationResult result) {
+        return result.status() != AdherenceStatus.MET
+                && isShielded(shields, memberId, result.obligation().dueOn());
+    }
+
+    /** The results no shield of the member excuses, in the order given. */
+    public static List<ObligationResult> unexcused(
+            List<ObligationResult> results, List<Shield> shields, String memberId) {
+        return results.stream()
+                .filter(result -> !excuses(shields, memberId, result))
+                .toList();
+    }
+
     /** The distinct days of {@code range} covered, so two overlapping entries are counted once. */
     public static int shieldedDayCount(List<Shield> shields, String memberId, DateRange range) {
         List<DateRange> covering = shieldsOver(shields, memberId, range).stream()

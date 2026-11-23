@@ -2,6 +2,7 @@ package io.github.rkaushikdev.hitchline.app;
 
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
+import io.github.rkaushikdev.hitchline.domain.adherence.Shield;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.nudge.NudgePlanner;
 import io.github.rkaushikdev.hitchline.domain.nudge.NudgePolicy;
@@ -38,11 +39,13 @@ public final class NudgesService {
         return policy;
     }
 
+    /** The nudges over a window. Nobody is pinged about a day a shield excuses, leave above all. */
     public List<PlannedNudge> plan(String memberId, String window) {
         LoadedMember loaded = loader.load(memberId);
-        List<ObligationResult> results = loader.score(loaded, DateRange.parse(window));
+        List<ObligationResult> owed =
+                Shield.unexcused(loader.score(loaded, DateRange.parse(window)), loaded.shields(), memberId);
         return NudgePlanner.plan(
-                loaded.roster(), policyFor(memberId), results, ports.clock().now());
+                loaded.roster(), policyFor(memberId), owed, ports.clock().now());
     }
 
     /** True when the member has a run going and something open that has not been started. */

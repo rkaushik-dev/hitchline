@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.rkaushikdev.hitchline.app.CheckInsService.RecordCheckInCommand;
+import io.github.rkaushikdev.hitchline.app.RosterService.ShieldCommand;
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
+import io.github.rkaushikdev.hitchline.domain.adherence.ShieldReason;
 import io.github.rkaushikdev.hitchline.domain.nudge.NudgePolicy;
 import io.github.rkaushikdev.hitchline.domain.nudge.PlannedNudge;
 import io.github.rkaushikdev.hitchline.domain.time.Zones;
@@ -14,6 +16,7 @@ import io.github.rkaushikdev.hitchline.infra.IdSources;
 import io.github.rkaushikdev.hitchline.infra.store.MemoryStore;
 import io.github.rkaushikdev.hitchline.support.Fixtures;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -73,6 +76,22 @@ class NudgesServiceTest {
 
     @Nested
     class Planning {
+
+        @Test
+        void sendsNothingAboutADayOfLeave() {
+            new RosterService(store)
+                    .shieldDays(new ShieldCommand(
+                            ADA,
+                            "2025-01-10..2025-01-11",
+                            ShieldReason.ANNUAL_LEAVE,
+                            Optional.empty(),
+                            Optional.empty()));
+            assertThat(service.plan(ADA, "2025-01-10..2025-01-10")).isEmpty();
+            assertThat(service.plan(ADA, "2025-01-10..2025-01-12"))
+                    .extracting(PlannedNudge::onDate)
+                    .extracting(Object::toString)
+                    .containsExactly("2025-01-12");
+        }
 
         @Test
         void plansOneNudgeForTheOpenDay() {

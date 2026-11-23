@@ -7,6 +7,7 @@ import io.github.rkaushikdev.hitchline.domain.adherence.HourBucket;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
 import io.github.rkaushikdev.hitchline.domain.adherence.PeriodSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.RoleSplit;
+import io.github.rkaushikdev.hitchline.domain.adherence.Shield;
 import io.github.rkaushikdev.hitchline.domain.adherence.StreakSummary;
 import io.github.rkaushikdev.hitchline.domain.adherence.SummaryRequest;
 import io.github.rkaushikdev.hitchline.domain.adherence.Trend;
@@ -72,7 +73,7 @@ public final class AdherenceService {
                 request.summarise(),
                 request.byHabit(),
                 byHitch,
-                Analytics.byRole(results, result -> loaded.roster()
+                Analytics.byRole(Shield.unexcused(results, loaded.shields(), memberId), result -> loaded.roster()
                         .roleFor(result.obligation().dueOn())),
                 Analytics.trendOf(byHitch),
                 Analytics.busiestHour(loaded.resolved())
@@ -89,11 +90,12 @@ public final class AdherenceService {
         return StreakSummary.compute(results, loaded.shields(), memberId);
     }
 
-    /** What is still open in a window and not yet done enough times. */
+    /** What is still open in a window and not yet done enough times, less anything a shield excuses. */
     public List<ObligationResult> open(String memberId, String window) {
-        DateRange range = DateRange.parse(window);
         LoadedMember loaded = loader.load(memberId);
-        return loader.score(loaded, range).stream()
+        List<ObligationResult> owed =
+                Shield.unexcused(loader.score(loaded, DateRange.parse(window)), loaded.shields(), memberId);
+        return owed.stream()
                 .filter(result -> result.status() == AdherenceStatus.PENDING
                         && result.count() < result.obligation().times())
                 .toList();

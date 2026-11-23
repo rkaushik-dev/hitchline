@@ -5,6 +5,7 @@ import static io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus.M
 import static io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus.PARTIAL;
 import static io.github.rkaushikdev.hitchline.domain.adherence.AdherenceStatus.PENDING;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import io.github.rkaushikdev.hitchline.domain.Ids;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
@@ -80,6 +81,67 @@ class SummaryRequestTest {
         @Test
         void readsBackAsALine() {
             assertThat(summary.describe()).isEqualTo("2025-01-01..2025-01-31 2 of 4 at 50%");
+        }
+    }
+
+    @Nested
+    class ShieldedObligations {
+
+        private final List<ObligationResult> leave = List.of(
+                result("2025-01-12", MET),
+                result("2025-01-13", MISSED),
+                result("2025-01-14", PARTIAL),
+                result("2025-01-15", MET),
+                result("2025-01-16", MISSED));
+
+        @Test
+        void leavesWhatWasNotDoneOnAShieldedDayOutOfTheCounts() {
+            PeriodSummary summary =
+                    request(leave, List.of(LEAVE), "2025-01-01..2025-01-31").summarise();
+            assertThat(summary.owed()).isEqualTo(3);
+            assertThat(summary.met()).isEqualTo(2);
+            assertThat(summary.missed()).isEqualTo(1);
+            assertThat(summary.partial()).isZero();
+            assertThat(summary.rate()).isCloseTo(2 / 3.0, within(1e-9));
+        }
+
+        @Test
+        void countsEverythingWhenNothingIsShielded() {
+            PeriodSummary summary =
+                    request(leave, List.of(), "2025-01-01..2025-01-31").summarise();
+            assertThat(summary.owed()).isEqualTo(5);
+            assertThat(summary.missed()).isEqualTo(2);
+        }
+
+        @Test
+        void readsOnlyTheMembersOwnShields() {
+            Shield someoneElse = Shield.of(
+                    Ids.crewMemberId("mem_FEDCBA9876543210"),
+                    DateRange.parse("2025-01-13..2025-01-15"),
+                    ShieldReason.ANNUAL_LEAVE,
+                    Zones.parseInstant("2025-01-04T10:00:00Z"));
+            assertThat(request(leave, List.of(someoneElse), "2025-01-01..2025-01-31")
+                            .summarise()
+                            .owed())
+                    .isEqualTo(5);
+        }
+
+        @Test
+        void excusesAPendingDayAsWellAsAMissedOne() {
+            ObligationResult open = result("2025-01-14", PENDING);
+            assertThat(Shield.excuses(List.of(LEAVE), MEMBER.id(), open)).isTrue();
+            assertThat(Shield.excuses(List.of(LEAVE), MEMBER.id(), result("2025-01-14", MET)))
+                    .isFalse();
+            assertThat(Shield.unexcused(List.of(open), List.of(LEAVE), MEMBER.id()))
+                    .isEmpty();
+        }
+
+        @Test
+        void keepsTheHabitLinesInStepWithTheWindow() {
+            List<HabitSummary> byHabit =
+                    request(leave, List.of(LEAVE), "2025-01-01..2025-01-31").byHabit();
+            assertThat(byHabit).hasSize(1);
+            assertThat(byHabit.get(0).owed()).isEqualTo(3);
         }
     }
 

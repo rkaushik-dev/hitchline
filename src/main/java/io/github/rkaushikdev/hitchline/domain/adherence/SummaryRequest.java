@@ -8,7 +8,8 @@ import java.util.TreeSet;
 
 /**
  * Scored results to be summarised over a window: as one period, per habit or per hitch.
- * Obligations are placed by the day they fell due.
+ * Obligations are placed by the day they fell due, and one a shield excuses is left out of every
+ * count and of the rate: a missed day of approved leave was never owed in the first place.
  *
  * @param roster the member's roster
  * @param results scored obligations
@@ -23,7 +24,9 @@ public record SummaryRequest(Roster roster, List<ObligationResult> results, List
     }
 
     private List<ObligationResult> inRange() {
-        return results.stream()
+        List<ObligationResult> owed =
+                Shield.unexcused(results, shields, roster.member().id());
+        return owed.stream()
                 .filter(result -> range.contains(result.obligation().dueOn()))
                 .toList();
     }

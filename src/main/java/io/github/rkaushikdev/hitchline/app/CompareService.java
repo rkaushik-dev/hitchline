@@ -2,6 +2,7 @@ package io.github.rkaushikdev.hitchline.app;
 
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.adherence.ObligationResult;
+import io.github.rkaushikdev.hitchline.domain.adherence.Shield;
 import io.github.rkaushikdev.hitchline.domain.adherence.StatusTally;
 import io.github.rkaushikdev.hitchline.domain.crew.AccessRequest;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
@@ -22,7 +23,7 @@ import java.util.Optional;
  * A crew read side by side. Two rules matter here and they pull against each other: a lead needs
  * to see whether the crew is keeping up, and a member who has not shared a habit must not appear
  * in a list because of it. So the comparison only ever counts what the viewer is allowed to read,
- * and says how much it left out.
+ * and says how much it left out. Nobody drops down the list for days a shield excuses.
  */
 public final class CompareService {
 
@@ -101,14 +102,15 @@ public final class CompareService {
                 }
                 readable.addAll(loader.scoreOne(loaded, habit, range));
             }
-            StatusTally counts = ObligationResult.countByStatus(readable);
+            List<ObligationResult> owed = Shield.unexcused(readable, loaded.shields(), member.id());
+            StatusTally counts = ObligationResult.countByStatus(owed);
             lines.add(new CrewLine(
                     member.id(),
                     member.displayName(),
-                    readable.size(),
+                    owed.size(),
                     counts.met(),
                     counts.missed(),
-                    ObligationResult.adherenceRate(readable),
+                    ObligationResult.adherenceRate(owed),
                     hidden));
         }
         lines.sort(BEST_FIRST);

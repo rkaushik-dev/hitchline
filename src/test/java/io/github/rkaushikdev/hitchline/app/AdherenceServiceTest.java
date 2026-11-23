@@ -131,6 +131,29 @@ class AdherenceServiceTest {
         }
 
         @Test
+        void holdsNothingMissedOnLeaveAgainstTheRate() {
+            for (String day : List.of("2025-01-06", "2025-01-07", "2025-01-08")) {
+                checkInOn(day);
+            }
+            AdherenceReport before = service.report(ADA, "2025-01-06..2025-01-15");
+            shieldLeave();
+            AdherenceReport after = service.report(ADA, "2025-01-06..2025-01-15");
+            assertThat(before.summary().owed()).isEqualTo(10);
+            assertThat(after.summary().owed()).isEqualTo(7);
+            assertThat(after.summary().missed()).isEqualTo(before.summary().missed() - 3);
+            assertThat(after.byRole().get(0).owed()).isEqualTo(7);
+            assertThat(after.results()).hasSize(10);
+        }
+
+        @Test
+        void listsNothingOpenOnADayOfLeave() {
+            rosters.shieldDays(new ShieldCommand(
+                    ADA, "2025-01-20..2025-01-31", ShieldReason.SICK, Optional.empty(), Optional.empty()));
+            holdOver();
+            assertThat(service.open(ADA, "2025-01-20..2025-01-31")).isEmpty();
+        }
+
+        @Test
         void countsShieldedDaysInTheSummary() {
             shieldLeave();
             assertThat(service.report(ADA, "2025-01-06..2025-01-19").summary().shieldedDays())
