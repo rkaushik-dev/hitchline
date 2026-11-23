@@ -5,7 +5,6 @@ import io.github.rkaushikdev.hitchline.domain.habit.Habit;
 import io.github.rkaushikdev.hitchline.domain.habit.HabitHistory;
 import io.github.rkaushikdev.hitchline.domain.habit.HabitRevision;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
-import io.github.rkaushikdev.hitchline.domain.rotation.RoleBlock;
 import io.github.rkaushikdev.hitchline.domain.rotation.RoleCalendar;
 import io.github.rkaushikdev.hitchline.domain.rotation.Roster;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
@@ -54,20 +53,25 @@ public record Expansion(Roster roster, Habit habit, DateRange window, Optional<H
         return new Obligation(habit.id(), habit.memberId(), scope, withGrace, times);
     }
 
-    private List<Obligation> perDay(int times, List<DayRole> roles) {
+    /** One obligation per range, each clipped to the habit's life, any range it misses dropped. */
+    private List<Obligation> spans(ObligationScope scope, List<DateRange> ranges, int times) {
         List<Obligation> entries = new ArrayList<>();
-        Optional<RoleCalendar> calendar =
-                roles.isEmpty() ? Optional.empty() : Optional.of(RoleCalendar.build(roster, window));
-        for (CivilDate date : window.days()) {
-            if (!habit.isRunningOn(date)) {
-                continue;
-            }
-            if (calendar.isPresent() && !roles.contains(calendar.get().roleThrough(roster, date))) {
-                continue;
-            }
-            entries.add(emit(ObligationScope.DAY, DateRange.singleDay(date), times));
+        for (DateRange range : ranges) {
+            habitWindow(habit, range).ifPresent(live -> entries.add(emit(scope, live, times)));
         }
         return entries;
+    }
+
+    private List<Obligation> perDay(int times, List<DayRole> roles) {
+        Optional<RoleCalendar> calendar =
+                roles.isEmpty() ? Optional.empty() : Optional.of(RoleCalendar.build(roster, window));
+        List<DateRange> days = window.days().stream()
+                .filter(habit::isRunningOn)
+                .filter(date ->
+                        calendar.isEmpty() || roles.contains(calendar.get().roleThrough(roster, date)))
+                .map(DateRange::singleDay)
+                .toList();
+        return spans(ObligationScope.DAY, days, times);
     }
 
     /**
@@ -75,41 +79,38 @@ public record Expansion(Roster roster, Habit habit, DateRange window, Optional<H
      * the thing three times in their first week has finished what the fortnight asked for.
      */
     private List<Obligation> perHitch(int times) {
-        List<Obligation> entries = new ArrayList<>();
-        for (DateRange hitch : roster.member().rotation().hitchesOver(window)) {
-            habitWindow(habit, hitch).ifPresent(live -> entries.add(emit(ObligationScope.HITCH, live, times)));
-        }
-        return entries;
+        return spans(ObligationScope.HITCH, roster.member().rotation().hitchesOver(window), times);
     }
 
     /**
      * One obligation per unbroken run of days in the role. Runs are found over a window widened by
      * a whole cycle at each end, so a block that started before the window still comes back whole.
+     * An early block cadence is owed over the first days of each run only.
      */
-    private List<Obligation> perBlock(int times, DayRole role) {
+    private List<Obligation> perBlock(Cadence.PerBlock cadence) {
         int cycle = roster.member().rotation().pattern().cycleLength();
         DateRange wide =
                 DateRange.of(window.from().plusDays(-cycle), window.to().plusDays(cycle));
-        List<Obligation> entries = new ArrayList<>();
-        for (RoleBlock block : roster.effectiveBlocks(wide)) {
-            if (block.role() != role || !block.range().intersects(window)) {
-                continue;
-            }
-            habitWindow(habit, block.range()).ifPresent(live -> entries.add(emit(ObligationScope.BLOCK, live, times)));
-        }
-        return entries;
+        List<DateRange> runs = roster.effectiveBlocks(wide).stream()
+                .filter(block -> block.role() == cadence.role() && block.range().intersects(window))
+                .map(block -> cadence.isEarly() ? firstDays(block.range(), cadence.withinDays()) : block.range())
+                .toList();
+        return spans(ObligationScope.BLOCK, runs, cadence.times());
+    }
+
+    private static DateRange firstDays(DateRange run, int days) {
+        return DateRange.of(run.from(), CivilDate.min(run.to(), run.from().plusDays(days - 1L)));
     }
 
     /** One obligation per calendar week, Monday to Sunday, clipped to the habit's life. */
     private List<Obligation> perWeek(int times) {
-        List<Obligation> entries = new ArrayList<>();
-        CivilDate monday = window.from().startOfIsoWeek();
-        while (!monday.isAfter(window.to())) {
-            habitWindow(habit, DateRange.of(monday, monday.endOfIsoWeek()))
-                    .ifPresent(live -> entries.add(emit(ObligationScope.WEEK, live, times)));
-            monday = monday.plusDays(7);
+        List<DateRange> weeks = new ArrayList<>();
+        for (CivilDate monday = window.from().startOfIsoWeek();
+                !monday.isAfter(window.to());
+                monday = monday.plusDays(7)) {
+            weeks.add(DateRange.of(monday, monday.endOfIsoWeek()));
         }
-        return entries;
+        return spans(ObligationScope.WEEK, weeks, times);
     }
 
     /**
@@ -121,13 +122,12 @@ public record Expansion(Roster roster, Habit habit, DateRange window, Optional<H
         CivilDate anchor = habit.startsOn();
         int firstTile = Math.floorDiv(CivilDate.daysBetween(anchor, window.from()), windowDays);
         int lastTile = Math.floorDiv(CivilDate.daysBetween(anchor, window.to()), windowDays);
-        List<Obligation> entries = new ArrayList<>();
+        List<DateRange> tiles = new ArrayList<>();
         for (int tile = firstTile; tile <= lastTile; tile += 1) {
             CivilDate from = anchor.plusDays((long) tile * windowDays);
-            habitWindow(habit, DateRange.of(from, from.plusDays(windowDays - 1L)))
-                    .ifPresent(live -> entries.add(emit(ObligationScope.WINDOW, live, times)));
+            tiles.add(DateRange.of(from, from.plusDays(windowDays - 1L)));
         }
-        return entries;
+        return spans(ObligationScope.WINDOW, tiles, times);
     }
 
     private List<Obligation> expandOne() {
@@ -137,7 +137,7 @@ public record Expansion(Roster roster, Habit habit, DateRange window, Optional<H
                     case Cadence.PerRoleDay roleDay -> perDay(roleDay.times(), roleDay.roles());
                     case Cadence.PerHitch hitch -> perHitch(hitch.times());
                     case Cadence.PerWeek week -> perWeek(week.times());
-                    case Cadence.PerBlock block -> perBlock(block.times(), block.role());
+                    case Cadence.PerBlock block -> perBlock(block);
                     case Cadence.PerWindow tiles -> perWindow(tiles.times(), tiles.windowDays());
                 };
         return Obligation.sort(entries);

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.rkaushikdev.hitchline.domain.ConflictException;
 import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.ValidationException;
+import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -70,12 +71,20 @@ class HabitTemplateTest {
         @Test
         void coversSafetyRestFitnessAndWellbeing() {
             assertThat(HabitTemplate.STANDARD_TEMPLATES.stream().map(HabitTemplate::key))
-                    .containsExactly("toolbox-talk", "rest-hours", "gym-session", "call-home", "kit-check");
+                    .containsExactly(
+                            "toolbox-talk", "rest-hours", "gym-session", "call-home", "kit-check", "arrival-briefing");
         }
 
         @Test
         void usesABlockCadenceWhereOnceADayWouldBeWrong() {
             assertThat(standard("kit-check").cadence().format()).isEqualTo("1/onshift-block");
+        }
+
+        @Test
+        void asksForTheArrivalBriefingOnTheFirstDayOfATrip() {
+            Cadence cadence = standard("arrival-briefing").cadence();
+            assertThat(cadence).isEqualTo(new Cadence.PerBlock(DayRole.ONSHIFT, 1, 1));
+            assertThat(standard("arrival-briefing").tags()).containsExactly("compliance", "safety");
         }
 
         @Test
@@ -130,8 +139,8 @@ class HabitTemplateTest {
         void filtersByTag() {
             assertThat(HabitTemplate.tagged(HabitTemplate.library(), "safety").stream()
                             .map(HabitTemplate::key))
-                    .containsExactly("toolbox-talk", "kit-check");
-            assertThat(HabitTemplate.tagged(HabitTemplate.library(), "Safety")).hasSize(2);
+                    .containsExactly("toolbox-talk", "kit-check", "arrival-briefing");
+            assertThat(HabitTemplate.tagged(HabitTemplate.library(), "Safety")).hasSize(3);
             assertThat(HabitTemplate.tagged(HabitTemplate.library(), "nothing")).isEmpty();
         }
     }

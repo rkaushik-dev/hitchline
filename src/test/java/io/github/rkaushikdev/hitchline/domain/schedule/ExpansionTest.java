@@ -264,6 +264,38 @@ class ExpansionTest {
         }
 
         @Test
+        void asksForAnArrivalBriefingInTheFirstDayOfEachTrip() {
+            List<Obligation> entries = expand(
+                    PLAIN, Fixtures.aHabit(o -> o.cadence("1/onshift-block within 1d")), "2025-01-06..2025-03-02");
+            assertThat(windows(entries)).containsExactly("2025-01-06..2025-01-06", "2025-02-03..2025-02-03");
+            assertThat(entries).allMatch(entry -> entry.scope() == ObligationScope.BLOCK);
+        }
+
+        @Test
+        void keepsAnEarlyWindowInsideARunShorterThanIt() {
+            Roster cutShort = Roster.of(
+                    MEMBER,
+                    List.of(RosterOverride.of(
+                            MEMBER.id(),
+                            r("2025-01-08..2025-01-19"),
+                            DayRole.OFFSHIFT,
+                            OverrideReason.MEDICAL,
+                            Zones.parseInstant("2025-01-07T10:00:00Z"))));
+            List<Obligation> entries = expand(
+                    cutShort, Fixtures.aHabit(o -> o.cadence("1/onshift-block within 5d")), "2025-01-06..2025-01-07");
+            assertThat(windows(entries)).containsExactly("2025-01-06..2025-01-07");
+        }
+
+        @Test
+        void addsTheGraceDaysAfterTheEarlyWindow() {
+            List<Obligation> entries = expand(
+                    PLAIN,
+                    Fixtures.aHabit(o -> o.cadence("1/onshift-block within 2d").graceDays(1)),
+                    "2025-01-06..2025-01-19");
+            assertThat(windows(entries)).containsExactly("2025-01-06..2025-01-08");
+        }
+
+        @Test
         void canBeAskedAboutTheOffShiftBlocksInstead() {
             List<Obligation> entries =
                     expand(PLAIN, Fixtures.aHabit(o -> o.cadence("2/offshift-block")), "2025-01-20..2025-02-02");

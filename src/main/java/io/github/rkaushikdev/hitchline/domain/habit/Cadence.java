@@ -22,6 +22,7 @@ public sealed interface Cadence {
     int MAX_TIMES = 48;
     int MIN_WINDOW = 2;
     int MAX_WINDOW = 120;
+    int MAX_WITHIN_DAYS = 30;
 
     /** Which of the six shapes this is. */
     CadenceKind kind();
@@ -69,10 +70,28 @@ public sealed interface Cadence {
         }
     }
 
-    /** A number of times per unbroken run of days in the named role, however long the run is. */
-    record PerBlock(DayRole role, int times) implements Cadence {
+    /**
+     * A number of times per unbroken run of days in the named role, however long the run is. With
+     * {@code withinDays} above zero it has to be done in the first that many days of the run, the
+     * way an arrival briefing has to happen on the first day of a trip and not on the last.
+     */
+    record PerBlock(DayRole role, int times, int withinDays) implements Cadence {
         public PerBlock {
             checkTimes(times);
+            if (withinDays < 0 || withinDays > MAX_WITHIN_DAYS) {
+                throw ValidationException.field(
+                        "withinDays", "must be from 0 to " + MAX_WITHIN_DAYS + " days, got " + withinDays);
+            }
+        }
+
+        /** Any time during the run. */
+        public PerBlock(DayRole role, int times) {
+            this(role, times, 0);
+        }
+
+        /** True when it has to be done near the start of the run. */
+        public boolean isEarly() {
+            return withinDays > 0;
         }
 
         @Override
@@ -135,6 +154,10 @@ public sealed interface Cadence {
         return new PerBlock(role, times);
     }
 
+    static PerBlock perBlock(DayRole role, int times, int withinDays) {
+        return new PerBlock(role, times, withinDays);
+    }
+
     static PerWeek perWeek(int times) {
         return new PerWeek(times);
     }
@@ -145,7 +168,7 @@ public sealed interface Cadence {
 
     /**
      * Reads the short forms people type: "2/day", "1/onshift-day", "1/onshift+standby-day",
-     * "3/hitch", "2/week", "1/onshift-block", "5/14d". Case and surrounding space do not matter,
+     * "3/hitch", "2/week", "1/onshift-block", "1/onshift-block within 1d", "5/14d". Case and surrounding space do not matter,
      * and "on" and "off" stand for the shift roles. The unit is tried against each form in turn.
      */
     static Cadence parse(String text) {
@@ -175,7 +198,9 @@ public sealed interface Cadence {
                                 "+", roleDay.roles().stream().map(DayRole::wire).toList()) + "-day";
             case PerHitch hitch -> hitch.times() + "/hitch";
             case PerWeek week -> week.times() + "/week";
-            case PerBlock block -> block.times() + "/" + block.role() + "-block";
+            case PerBlock block ->
+                block.times() + "/" + block.role() + "-block"
+                        + (block.isEarly() ? " within " + block.withinDays() + "d" : "");
             case PerWindow window -> window.times() + "/" + window.windowDays() + "d";
         };
     }
@@ -217,7 +242,10 @@ public sealed interface Cadence {
                 Form.of("week", (times, unit) -> perWeek(times)),
                 Form.of("(\\d+)d", (times, unit) -> perWindow(times, count(unit.group(1)))),
                 Form.of("([a-z+]+)-day", (times, unit) -> perRoleDay(readRoles(unit.group(1)), times)),
-                Form.of("([a-z]+)-block", (times, unit) -> perBlock(readRole(unit.group(1)), times)));
+                Form.of("([a-z]+)-block", (times, unit) -> perBlock(readRole(unit.group(1)), times)),
+                Form.of(
+                        "([a-z]+)-block" + Texts.SPACE_CLASS + "+within" + Texts.SPACE_CLASS + "+(\\d+)d",
+                        (times, unit) -> perBlock(readRole(unit.group(1)), times, withinOf(unit.group(2)))));
 
         private Forms() {}
 
@@ -230,6 +258,15 @@ public sealed interface Cadence {
                 }
             }
             return roles;
+        }
+
+        /** The days of a within clause; zero there would mean any time, which is written without one. */
+        static int withinOf(String digits) {
+            int days = count(digits);
+            if (days == 0) {
+                throw ValidationException.field("cadence", "needs at least one day after within");
+            }
+            return days;
         }
 
         /** Reads a run of digits; one too long for a count reads as a count past every limit. */

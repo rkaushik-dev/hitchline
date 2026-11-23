@@ -109,6 +109,26 @@ class CadenceTest {
         }
 
         @Test
+        void readsABlockCadenceOwedEarlyInTheRun() {
+            Cadence early = Cadence.parse("1/onshift-block within 1d");
+            assertThat(early).isEqualTo(Cadence.perBlock(ONSHIFT, 1, 1));
+            assertThat(early.format()).isEqualTo("1/onshift-block within 1d");
+            assertThat(Cadence.parse(" 2/ON-BLOCK  WITHIN 3D ")).isEqualTo(Cadence.perBlock(ONSHIFT, 2, 3));
+            assertThat(Cadence.perBlock(ONSHIFT, 1).isEarly()).isFalse();
+            assertThat(Cadence.perBlock(ONSHIFT, 1).withinDays()).isZero();
+        }
+
+        @Test
+        void refusesAnEarlyWindowOfNoDaysOrOverAMonth() {
+            assertThatThrownBy(() -> Cadence.parse("1/onshift-block within 0d"))
+                    .hasMessageContaining("at least one day");
+            assertThatThrownBy(() -> Cadence.parse("1/onshift-block within 31d"))
+                    .hasMessageContaining("from 0 to 30");
+            assertThatThrownBy(() -> Cadence.parse("1/onshift-block within"))
+                    .hasMessageContaining("does not know the unit");
+        }
+
+        @Test
         void readsACalendarWeekCadence() {
             Cadence weekly = Cadence.parse("2/week");
             assertThat(weekly).isEqualTo(Cadence.perWeek(2));
@@ -133,6 +153,7 @@ class CadenceTest {
                     "3/hitch",
                     "2/week",
                     "1/offshift-block",
+                    "1/onshift-block within 2d",
                     "5/14d")) {
                 assertThat(Cadence.parse(written).format()).isEqualTo(written);
             }

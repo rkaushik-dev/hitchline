@@ -57,6 +57,10 @@ public record HabitTemplate(
             builder("kit-check", "Check the survival suit", "1/onshift-block")
                     .tags("safety")
                     .note("once per stretch offshore, not once a day")
+                    .build(),
+            builder("arrival-briefing", "Sit the arrival safety briefing", "1/onshift-block within 1d")
+                    .tags("safety", "compliance")
+                    .note("on the first day of every trip, before any work starts")
                     .build());
 
     public HabitTemplate {
