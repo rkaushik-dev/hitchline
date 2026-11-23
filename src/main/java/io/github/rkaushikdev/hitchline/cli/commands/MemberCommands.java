@@ -8,6 +8,7 @@ import io.github.rkaushikdev.hitchline.cli.Context;
 import io.github.rkaushikdev.hitchline.cli.Render;
 import io.github.rkaushikdev.hitchline.domain.IdKind;
 import io.github.rkaushikdev.hitchline.domain.Ids;
+import io.github.rkaushikdev.hitchline.domain.NotFoundException;
 import io.github.rkaushikdev.hitchline.domain.ValidationException;
 import io.github.rkaushikdev.hitchline.domain.crew.CrewMember;
 import io.github.rkaushikdev.hitchline.domain.rotation.DayRole;
@@ -19,7 +20,10 @@ import io.github.rkaushikdev.hitchline.domain.rotation.RotationAssignment;
 import io.github.rkaushikdev.hitchline.domain.rotation.RotationPattern;
 import io.github.rkaushikdev.hitchline.domain.time.CivilDate;
 import io.github.rkaushikdev.hitchline.domain.time.Zones;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import picocli.CommandLine;
@@ -52,12 +56,14 @@ public final class MemberCommands {
         @Option(names = "--name", required = true, paramLabel = "<name>", description = "display name")
         private String name;
 
-        @Option(
-                names = "--pattern",
-                required = true,
-                paramLabel = "<pattern>",
-                description = "rotation pattern such as 14/14")
+        @Option(names = "--pattern", paramLabel = "<pattern>", description = "rotation pattern such as 14/14")
         private String pattern;
+
+        @Option(
+                names = "--relief-of",
+                paramLabel = "<memberId>",
+                description = "work back to back with this member, on their rota and site")
+        private String reliefOf;
 
         @Option(names = "--anchor", paramLabel = "<date>", description = "the date the cycle starts on")
         private String anchor;
@@ -71,7 +77,10 @@ public final class MemberCommands {
         @Option(names = "--home", paramLabel = "<zone>", description = "home timezone", defaultValue = "UTC")
         private String home;
 
-        @Option(names = "--site", paramLabel = "<zone>", description = "site timezone", defaultValue = "UTC")
+        @Option(
+                names = "--site",
+                paramLabel = "<zone>",
+                description = "site timezone, UTC unless the member relieved says otherwise")
         private String site;
 
         @Option(
@@ -87,15 +96,37 @@ public final class MemberCommands {
 
         @Override
         void run(Context ctx) {
+            Optional<CrewMember> relieved = relieved(ctx);
+            String siteZone =
+                    site != null ? site : relieved.map(CrewMember::siteZone).orElse("UTC");
+            RotationAssignment rotation =
+                    relieved.map(other -> other.rotation().relief()).orElseGet(this::rotation);
             String id = Ids.crewMemberId(ctx.ports().ids().next(IdKind.CREW_MEMBER));
-            CivilDate joinedOn = Zones.civilDateIn(site, ctx.ports().clock().now());
-            CrewMember member = CrewMember.of(id, name, home, site, rotation(), joinedOn);
+            CivilDate joinedOn = Zones.civilDateIn(siteZone, ctx.ports().clock().now());
+            CrewMember member = CrewMember.of(id, name, home, siteZone, rotation, joinedOn);
             ctx.ports().members().save(member);
             ctx.out(member.id() + "  " + member.displayName());
         }
 
+        /** The member being relieved, who must exist, and who supplies the whole rota. */
+        private Optional<CrewMember> relieved(Context ctx) {
+            if (reliefOf == null) {
+                return Optional.empty();
+            }
+            if (pattern != null || anchor != null || crewChange != null) {
+                throw ValidationException.field(
+                        "reliefOf", "takes the rota of the member relieved, so give no pattern, anchor or crew change");
+            }
+            String other = Ids.crewMemberId(reliefOf);
+            return Optional.of(
+                    ctx.ports().members().byId(other).orElseThrow(() -> new NotFoundException("crew member", other)));
+        }
+
         /** Pinned on the anchor and phase, or on the crew change day; exactly one has to be given. */
         private RotationAssignment rotation() {
+            if (pattern == null) {
+                throw ValidationException.field("pattern", "is needed unless --relief-of names whose rota to take");
+            }
             if ((anchor == null) == (crewChange == null)) {
                 throw ValidationException.field("anchor", "give either --anchor or --crew-change");
             }
@@ -119,15 +150,16 @@ public final class MemberCommands {
 
         @Override
         void run(Context ctx) {
-            List<Column<CrewMember>> columns = List.of(
-                    Column.left("id", CrewMember::id),
-                    Column.left("name", CrewMember::displayName),
-                    Column.left("site", CrewMember::siteZone),
-                    Column.left("rota", MemberCommands::rotaOf),
-                    Column.left("status", row -> row.status().wire()));
-            ctx.out(Render.renderTable(ctx.ports().members().all(), columns));
+            ctx.out(Render.renderTable(ctx.ports().members().all(), MEMBER_COLUMNS));
         }
     }
+
+    private static final List<Column<CrewMember>> MEMBER_COLUMNS = List.of(
+            Column.left("id", CrewMember::id),
+            Column.left("name", CrewMember::displayName),
+            Column.left("site", CrewMember::siteZone),
+            Column.left("rota", MemberCommands::rotaOf),
+            Column.left("status", row -> row.status().wire()));
 
     /** The rota by the name the crewing office uses, or written out when it has none. */
     static String rotaOf(CrewMember member) {
@@ -147,6 +179,12 @@ public final class MemberCommands {
                 paramLabel = "<window>",
                 description = "window such as 2025-01-06..2025-01-19")
         private String window;
+
+        @Option(
+                names = "--beside",
+                paramLabel = "<memberId>",
+                description = "show another member's role on each day, such as a back to back")
+        private String beside;
 
         @Option(names = "--check", description = "check the trips and breaks against the duty limits")
         private boolean check;
@@ -173,7 +211,13 @@ public final class MemberCommands {
         void run(Context ctx) {
             String id = Ids.crewMemberId(memberId);
             RosterService roster = new RosterService(ctx.ports());
-            ctx.out(Render.renderTable(roster.daysFor(id, window), DAY_COLUMNS));
+            List<Column<RosterDay>> columns = new ArrayList<>(DAY_COLUMNS);
+            if (beside != null) {
+                Map<CivilDate, DayRole> theirs = new HashMap<>();
+                roster.daysFor(Ids.crewMemberId(beside), window).forEach(day -> theirs.put(day.date(), day.role()));
+                columns.add(Column.left("beside", day -> theirs.get(day.date()).wire()));
+            }
+            ctx.out(Render.renderTable(roster.daysFor(id, window), columns));
             if (check) {
                 DutyLimits limits = DutyLimits.of(
                         Arguments.wholeNumber(maxTrip, "maxTripDays", "must be a whole number of days"),

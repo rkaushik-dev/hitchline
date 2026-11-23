@@ -63,6 +63,25 @@ public record RotationAssignment(RotationPattern pattern, CivilDate anchor, int 
         return 0;
     }
 
+    /** How many days away the trip starting at {@link #tripStartIndex} runs for. */
+    public static int tripLength(RotationPattern pattern) {
+        int start = tripStartIndex(pattern);
+        int days = 0;
+        while (days < pattern.cycleLength() && DutyLimits.isAway(pattern.roleAtIndex((long) start + days))) {
+            days += 1;
+        }
+        return days;
+    }
+
+    /**
+     * The back to back of this assignment: the same pattern, starting each trip the day after this
+     * one's trip ends, so the two hand the job over at every crew change.
+     */
+    public RotationAssignment relief() {
+        int shifted = (int) Math.floorMod((long) phase - tripLength(pattern), (long) pattern.cycleLength());
+        return new RotationAssignment(pattern, anchor, shifted, effective);
+    }
+
     public boolean isActiveOn(CivilDate date) {
         return effective.map(window -> window.contains(date)).orElse(true);
     }

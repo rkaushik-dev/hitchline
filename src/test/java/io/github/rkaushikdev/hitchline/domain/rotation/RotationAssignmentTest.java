@@ -57,9 +57,57 @@ class RotationAssignmentTest {
         }
 
         @Test
+        void measuresTheTripFromItsFirstDayAway() {
+            assertThat(RotationAssignment.tripLength(RotationPattern.parse("1travel 13on 1travel 13off")))
+                    .isEqualTo(15);
+            assertThat(RotationAssignment.tripLength(RotationPattern.parse("2standby 5on 2off")))
+                    .isEqualTo(5);
+            assertThat(RotationAssignment.tripLength(RotationPattern.parse("3on 2travel")))
+                    .isEqualTo(5);
+        }
+
+        @Test
         void startsACycleWithNoHomeDaysAtZero() {
             assertThat(RotationAssignment.tripStartIndex(RotationPattern.parse("3on 2travel")))
                     .isZero();
+        }
+    }
+
+    @Nested
+    class BackToBack {
+
+        private final RotationAssignment ada =
+                RotationAssignment.fromCrewChange(RotationPattern.parse("14/14"), CivilDate.parse("2025-01-06"));
+
+        @Test
+        void putsTheReliefOffshoreWheneverTheFirstIsHome() {
+            RotationAssignment relief = ada.relief();
+            for (CivilDate date : DateRange.parse("2025-01-01..2025-03-31").days()) {
+                assertThat(relief.roleOn(date)).isNotEqualTo(ada.roleOn(date));
+            }
+            assertThat(relief.roleOn(CivilDate.parse("2025-01-20"))).isEqualTo(DayRole.ONSHIFT);
+            assertThat(relief.phase()).isEqualTo(14);
+        }
+
+        @Test
+        void startsTheReliefTheDayAfterTheTripEndsOnATravelRota() {
+            RotationAssignment flyer = RotationAssignment.fromCrewChange(
+                    RotationPattern.parse("1travel 13on 1travel 13off"), CivilDate.parse("2025-01-06"));
+            RotationAssignment relief = flyer.relief();
+            assertThat(flyer.roleOn(CivilDate.parse("2025-01-20"))).isEqualTo(DayRole.TRAVEL);
+            assertThat(relief.roleOn(CivilDate.parse("2025-01-20"))).isEqualTo(DayRole.OFFSHIFT);
+            assertThat(relief.roleOn(CivilDate.parse("2025-01-21"))).isEqualTo(DayRole.TRAVEL);
+        }
+
+        @Test
+        void leavesAGapAtHomeOnARotaLongerAshoreThanOffshore() {
+            RotationAssignment first = RotationAssignment.fromCrewChange(
+                    RotationPattern.parse("two-three"), CivilDate.parse("2025-01-06"));
+            RotationAssignment relief = first.relief();
+            assertThat(relief.roleOn(CivilDate.parse("2025-01-20"))).isEqualTo(DayRole.ONSHIFT);
+            assertThat(relief.roleOn(CivilDate.parse("2025-02-03"))).isEqualTo(DayRole.OFFSHIFT);
+            assertThat(relief.pattern()).isEqualTo(first.pattern());
+            assertThat(relief.anchor()).isEqualTo(first.anchor());
         }
     }
 

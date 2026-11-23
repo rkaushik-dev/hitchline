@@ -160,6 +160,45 @@ class CliMemberTest {
         }
 
         @Test
+        void addsABackToBackOnTheRotaAndSiteOfTheMemberRelieved() {
+            run(
+                    "member",
+                    "add",
+                    "--name",
+                    "Ada Vasquez",
+                    "--pattern",
+                    "14/14",
+                    "--crew-change",
+                    "2025-01-06",
+                    "--site",
+                    "Europe/Oslo");
+            String ada = firstMember();
+            assertThat(run("member", "add", "--name", "Bo Lindqvist", "--relief-of", ada))
+                    .isEqualTo(Context.EXIT_OK);
+            CrewMember bo = store.members().all().stream()
+                    .filter(member -> !member.id().equals(ada))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(bo.siteZone()).isEqualTo("Europe/Oslo");
+            assertThat(bo.rotation().roleOn(CivilDate.parse("2025-01-20"))).isEqualTo(DayRole.ONSHIFT);
+            assertThat(bo.rotation().roleOn(CivilDate.parse("2025-01-19"))).isEqualTo(DayRole.OFFSHIFT);
+        }
+
+        @Test
+        void refusesAReliefThatAlsoNamesARota() {
+            addAdaOnTheDefaultZones();
+            String ada = firstMember();
+            int code = run("member", "add", "--name", "Bo Lindqvist", "--relief-of", ada, "--pattern", "21/21");
+            assertThat(code).isEqualTo(Context.EXIT_MISUSED);
+            assertThat(context.errorText()).contains("takes the rota of the member relieved");
+            assertThat(run("member", "add", "--name", "Bo Lindqvist", "--relief-of", "mem_9999999999999999"))
+                    .isEqualTo(Context.EXIT_FAILED);
+            assertThat(run("member", "add", "--name", "Bo Lindqvist", "--anchor", "2025-01-06"))
+                    .isEqualTo(Context.EXIT_MISUSED);
+            assertThat(store.members().all()).hasSize(1);
+        }
+
+        @Test
         void wantsEitherAnAnchorOrACrewChangeButNotBoth() {
             String[] base = {"member", "add", "--name", "Ada Vasquez", "--pattern", "14/14"};
             assertThat(run(base)).isEqualTo(Context.EXIT_MISUSED);
@@ -258,6 +297,23 @@ class CliMemberTest {
             assertThat(lines).hasSize(5);
             assertThat(lines.get(2)).contains("onshift");
             assertThat(lines.get(3)).contains("offshift");
+        }
+
+        @Test
+        void showsABackToBackBesideTheRoster() {
+            String id = addAda();
+            run("member", "add", "--name", "Bo Lindqvist", "--relief-of", id);
+            String bo = store.members().all().stream()
+                    .map(CrewMember::id)
+                    .filter(other -> !other.equals(id))
+                    .findFirst()
+                    .orElseThrow();
+            context.clear();
+            run("member", "roster", id, "--window", "2025-01-19..2025-01-20", "--beside", bo);
+            List<String> lines = lines();
+            assertThat(lines.get(0)).contains("beside");
+            assertThat(lines.get(2)).containsPattern("2025-01-19 +onshift .*offshift");
+            assertThat(lines.get(3)).containsPattern("2025-01-20 +offshift .*onshift");
         }
 
         @Test
